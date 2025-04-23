@@ -4,6 +4,13 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- 1) PreviewView per CameraX -->
+    <androidx.camera.view.PreviewView
+          android:id="@+id/previewView"
+          android:layout_width="match_parent"
+          android:layout_height="match_parent" />
+
+      <!-- 2) Il pointer sopra la PreviewView -->
     <ImageView
         android:id="@+id/pointer"
         android:layout_width="64dp"

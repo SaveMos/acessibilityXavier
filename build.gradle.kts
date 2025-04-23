@@ -12,6 +12,6 @@ buildscript {
     }
     dependencies {
         classpath("com.android.tools.build:gradle:8.1.1") // o la tua versione corrente
-        classpath("com.chaquo.python:gradle:14.0.2")
+        classpath("com.chaquo.python:gradle:16.0.0")
     }
 }
