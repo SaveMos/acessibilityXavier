@@ -2,14 +2,20 @@ package it.unipi.dii.xavier
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.content.res.Resources
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Rect
 import android.graphics.YuvImage
 import android.graphics.ImageFormat
+import android.graphics.Matrix
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.MediaStore
+import android.util.Base64
 import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
@@ -26,6 +32,8 @@ import androidx.core.app.ActivityCompat
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
@@ -287,12 +295,12 @@ class MainActivity : AppCompatActivity() {
 
             Log.d("YUV", "yuv: $yuv")
 
-            //comprime in jpeg con qualità 90, scrivendo in uno stream di byte al quale viene applicata l'immagine compressa in jpeg
+            //comprime in jpeg con qualità 100, scrivendo in uno stream di byte al quale viene applicata l'immagine compressa in jpeg
             val out = ByteArrayOutputStream().apply {
-                yuv.compressToJpeg(Rect(0, 0, image.width, image.height), 90, this)
+                yuv.compressToJpeg(Rect(0, 0, image.width, image.height), 100, this)
             }
 
-            Log.d("OUT", "out: $out")
+            //Log.d("OUT", "out: $out")
 
             //ottiene l'array di byte in jpeg
             val jpegBytes = out.toByteArray()
@@ -306,8 +314,46 @@ class MainActivity : AppCompatActivity() {
             val py = Python.getInstance()
             val builtins = py.getBuiltins()
 
+            //salva le immagini per verifica---------------------------------------------------------
+            val resolver = applicationContext.contentResolver
+            val imageName = "latest_frame.jpg"
+            val imageCollection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+
+// 1. Rimuovi immagine precedente con lo stesso nome
+            val selection = "${MediaStore.Images.Media.DISPLAY_NAME} = ?"
+            val selectionArgs = arrayOf(imageName)
+            resolver.delete(imageCollection, selection, selectionArgs)
+
+// 2. Inserisci nuova immagine
+            val contentValues = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, imageName)
+                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                put(MediaStore.Images.Media.RELATIVE_PATH, "DCIM/GazeTracker")
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+            val uri = resolver.insert(imageCollection, contentValues)
+            var jpegBytesRotated = jpegBytes
+            uri?.let {
+                // 3. Ruota immagine se necessario
+               jpegBytesRotated = rotateImage(jpegBytes, 270) // ruota -90° se orientamento errato
+
+                resolver.openOutputStream(it).use { outStream ->
+                    outStream?.write(jpegBytesRotated)
+                }
+
+                contentValues.clear()
+                contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
+                resolver.update(it, contentValues, null, null)
+
+                Log.d("GALLERY_SAVE", "Immagine sovrascritta nella galleria: $uri")
+            }
+
+
+            //------------------------------------------------------------------------
+
+
             //converte i byte jpeg in un oggetto python bytes
-            val pyBytes = builtins.callAttr("bytes", jpegBytes)
+            val pyBytes = builtins.callAttr("bytes", jpegBytesRotated)
 
             //carica il modulo python coords
             val module = py.getModule("coords")
@@ -334,6 +380,18 @@ class MainActivity : AppCompatActivity() {
 
         imageProxy.close()
     }
+
+    private fun rotateImage(jpegBytes: ByteArray, degrees: Int): ByteArray {
+        val bmp = BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.size)
+        val matrix = Matrix()
+        matrix.postRotate(degrees.toFloat())
+        val rotatedBmp = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, matrix, true)
+
+        val outStream = ByteArrayOutputStream()
+        rotatedBmp.compress(Bitmap.CompressFormat.JPEG, 100, outStream)
+        return outStream.toByteArray()
+    }
+
 
     override fun onDestroy() {
         super.onDestroy()

@@ -22,6 +22,7 @@ android {
                 install("numpy")
                 install("opencv-python")
                 //install("eyeGestures")
+                //install("opencv-python-headless")
                 //install("tensorflow")
                 //install("mediapipe")
             }

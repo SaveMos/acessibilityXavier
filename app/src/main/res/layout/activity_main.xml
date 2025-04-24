@@ -13,8 +13,8 @@
       <!-- 2) Il pointer sopra la PreviewView -->
     <ImageView
         android:id="@+id/pointer"
-        android:layout_width="64dp"
-        android:layout_height="64dp"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
         android:layout_gravity="top|start"
         android:src="@drawable/mouse_pointer"
         android:layout_margin="0dp" />
