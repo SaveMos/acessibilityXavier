@@ -8,7 +8,11 @@ buildscript {
     repositories {
         google()
         mavenCentral()
-        maven { url = uri("https://chaquo.com/maven") }
+        maven {
+            url = uri("https://chaquo.com/maven")
+            url = uri("https://seeso.jfrog.io/artifactory/visualcamp-eyedid-sdk-android-release")
+        }
+
     }
     dependencies {
         classpath("com.android.tools.build:gradle:8.1.1") // o la tua versione corrente
