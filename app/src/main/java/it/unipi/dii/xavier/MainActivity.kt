@@ -2,47 +2,31 @@ package it.unipi.dii.xavier
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.ContentValues
 import android.content.pm.PackageManager
-import android.content.res.Resources
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Rect
-import android.graphics.YuvImage
-import android.graphics.ImageFormat
-import android.graphics.Matrix
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.provider.MediaStore
-import android.util.Base64
-import android.widget.ImageView
-import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.ExperimentalGetImage
-import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageProxy
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
-import androidx.core.content.ContextCompat
 import android.util.Log
+import android.widget.ImageView
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import com.chaquo.python.Python
-import com.chaquo.python.android.AndroidPlatform
-import java.io.ByteArrayOutputStream
-import java.io.File
-import java.io.FileOutputStream
+import androidx.core.content.ContextCompat
+import camp.visual.eyedid.gazetracker.GazeTracker
+import camp.visual.eyedid.gazetracker.callback.InitializationCallback
+import camp.visual.eyedid.gazetracker.callback.TrackingCallback
+import camp.visual.eyedid.gazetracker.constant.GazeTrackerOptions
+import camp.visual.eyedid.gazetracker.constant.InitializationErrorType
+import camp.visual.eyedid.gazetracker.metrics.BlinkInfo
+import camp.visual.eyedid.gazetracker.metrics.FaceInfo
+import camp.visual.eyedid.gazetracker.metrics.GazeInfo
+import camp.visual.eyedid.gazetracker.metrics.UserStatusInfo
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import java.util.concurrent.ScheduledExecutorService
-import java.util.concurrent.TimeUnit
 
 
 class MainActivity : AppCompatActivity() {
 
-    private val CAMERA_PERMISSION_REQUEST_CODE = 1001
+
+    private val CAMERA_PERMISSION_REQUEST_CODE = 1000
 
     //oggetto layout che contiene la freccetta
     private lateinit var pointer: ImageView
@@ -61,7 +45,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (!Python.isStarted()) Python.start(AndroidPlatform(this))
+        //if (!Python.isStarted()) Python.start(AndroidPlatform(this))
         setContentView(R.layout.activity_main)
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
@@ -100,6 +84,83 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private var gazeTracker: GazeTracker? = null
+
+    private fun permissionGranted() {
+        initGaze()
+    }
+
+    private fun initGaze() {
+        val licenseKey = "dev_ptq5nrn1bep16ykwwlwlag5n6u3hz6q7vj0sbcxc"
+        val options = GazeTrackerOptions.Builder().build()
+
+        GazeTracker.initGazeTracker(applicationContext, licenseKey, initializationCallback, options)
+    }
+
+    private val initializationCallback = object : InitializationCallback {
+        override fun onInitialized(gazeTracker: GazeTracker?, error: InitializationErrorType) {
+            if (gazeTracker != null) {
+                initSuccess(gazeTracker)
+            } else {
+                initFail(error)
+            }
+        }
+    }
+
+    private fun initSuccess(gazeTracker: GazeTracker) {
+        this.gazeTracker = gazeTracker
+
+        this.gazeTracker!!.setTrackingCallback(trackingCallback);
+    }
+
+    private fun initFail(error: InitializationErrorType) {
+        val err = when (error) {
+            InitializationErrorType.ERROR_INIT -> "Initialization failed"
+            InitializationErrorType.ERROR_CAMERA_PERMISSION -> "Required permission not granted"
+            else -> "Eyedid SDK initialization failed"
+        }
+        Log.w("Eyedid SDK", "Error description: $err")
+    }
+
+
+    private fun startCamera() {
+        permissionGranted()
+        gazeTracker?.startTracking()
+
+        start()
+
+
+
+    }
+
+    private fun start() {
+
+
+
+    }
+
+    private val trackingCallback: TrackingCallback = object : TrackingCallback {
+        override fun onMetrics(
+            timestamp: Long,
+            gazeInfo: GazeInfo,
+            faceInfo: FaceInfo,
+            blinkInfo: BlinkInfo,
+            userStatusInfo: UserStatusInfo
+        ) {
+            Log.i("Eyedid SDK", "Gaze coordinates: " + gazeInfo.x + "x" + gazeInfo.y)
+            //aggiorna la posizione dell'immagine del puntatore
+            runOnUiThread {
+                pointer.x = gazeInfo.x
+                pointer.y = gazeInfo.y
+            }
+        }
+
+        override fun onDrop(timestamp: Long) {
+        }
+    }
+
+
+    /*
     private fun startCamera() {
         //cameraX libreria Android per gestione fotocamera
         //ProcessCameraProvider è il gestore globale della fotocamera in CameraX
@@ -132,7 +193,8 @@ class MainActivity : AppCompatActivity() {
 
         }, ContextCompat.getMainExecutor(this)) //specifica che il listener deve girare sul main thread
     }
-
+    */
+    /*
     @androidx.annotation.OptIn(ExperimentalGetImage::class)
     private fun processFrame(imageProxy: ImageProxy) {
         //otteniamo l'oggetto image raw da imageproxy che è un wrapper dell'immagine raw
@@ -258,7 +320,8 @@ class MainActivity : AppCompatActivity() {
 
         imageProxy.close()
     }
-
+*/
+    /*
     private fun rotateImage(jpegBytes: ByteArray, degrees: Int): ByteArray {
         val bmp = BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.size)
         val matrix = Matrix()
@@ -269,6 +332,8 @@ class MainActivity : AppCompatActivity() {
         rotatedBmp.compress(Bitmap.CompressFormat.JPEG, 100, outStream)
         return outStream.toByteArray()
     }
+
+     */
 
 
     override fun onDestroy() {
