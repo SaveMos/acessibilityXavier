@@ -12,9 +12,12 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import camp.visual.eyedid.gazetracker.GazeTracker
 import camp.visual.eyedid.gazetracker.callback.InitializationCallback
+import camp.visual.eyedid.gazetracker.callback.StatusCallback
 import camp.visual.eyedid.gazetracker.callback.TrackingCallback
 import camp.visual.eyedid.gazetracker.constant.GazeTrackerOptions
 import camp.visual.eyedid.gazetracker.constant.InitializationErrorType
+import camp.visual.eyedid.gazetracker.constant.StatusErrorType
+import camp.visual.eyedid.gazetracker.device.CameraPosition
 import camp.visual.eyedid.gazetracker.metrics.BlinkInfo
 import camp.visual.eyedid.gazetracker.metrics.FaceInfo
 import camp.visual.eyedid.gazetracker.metrics.GazeInfo
@@ -84,6 +87,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    //classe principale che cattura la faccia dell'utente attraverso la fotocamera del dispositivo
+    //la processa e fornisce i dati relativi allo sguardo
     private var gazeTracker: GazeTracker? = null
 
     private fun permissionGranted() {
@@ -92,25 +97,67 @@ class MainActivity : AppCompatActivity() {
 
     private fun initGaze() {
         val licenseKey = "dev_ptq5nrn1bep16ykwwlwlag5n6u3hz6q7vj0sbcxc"
+        //un'istanza GazeTrackerOptions viene creata tramite il metodo build
         val options = GazeTrackerOptions.Builder().build()
+
+        Log.d("DENTRO INIT GAZE", "siamo entrati in initGaze")
 
         GazeTracker.initGazeTracker(applicationContext, licenseKey, initializationCallback, options)
     }
 
+
     private val initializationCallback = object : InitializationCallback {
         override fun onInitialized(gazeTracker: GazeTracker?, error: InitializationErrorType) {
+
+            Log.d("DENTRO ON INITIALIZED", "siamo entrati in onInitialized")
+
             if (gazeTracker != null) {
                 initSuccess(gazeTracker)
+
+                Log.d("PRIMA DI STATUS CALLBACK", "siamo prima di statusCallback")
+
+                gazeTracker.setStatusCallback(statusCallback);
+
+                Log.d("DOPO STATUS CALLBACK", "siamo dopo statusCallback")
+
+                val cameraPosition =
+                    CameraPosition("redmi note 8 pro", 1080f, 2134f, -34.5f, 0f, false)
+
+                //aggiungiamo la posizione della fotocamera al gazeTracker
+                gazeTracker.addCameraPosition(cameraPosition)
+                //apre fotocamera e inizia il tracking dello sguardo
+                gazeTracker?.startTracking()
+
             } else {
                 initFail(error)
             }
         }
     }
 
-    private fun initSuccess(gazeTracker: GazeTracker) {
-        this.gazeTracker = gazeTracker
+    private val statusCallback = object : StatusCallback {
+        override fun onStarted() {
+            // gazeTracker.startTracking() Success
+            Log.d("DENTRO ON STARTED", "dentro on started")
 
+        }
+
+        override fun onStopped(error: StatusErrorType) {
+            // gazeTracker.startTracking() Fail
+            Log.d("DENTRO ON STOPPED", "error: "+ error)
+        }
+    }
+
+    private fun initSuccess(gazeTracker: GazeTracker) {
+
+        Log.d("DENTRO INIT SUCCESS", "siamo entrati in initSuccess")
+
+        this.gazeTracker = gazeTracker
+        if(this.gazeTracker ==  null){
+            Log.d("GAZE TRACKER NULL", "gazeTracker è null")
+        }
+        //registra una funzione che riceve gli eventi di tracking, triggerata quando succedono delle cose
         this.gazeTracker!!.setTrackingCallback(trackingCallback);
+        Log.d("DOPO GAZE TRACKER", "siamo dopo gazeTracker")
     }
 
     private fun initFail(error: InitializationErrorType) {
@@ -125,17 +172,21 @@ class MainActivity : AppCompatActivity() {
 
     private fun startCamera() {
         permissionGranted()
-        gazeTracker?.startTracking()
 
-        start()
+        if(gazeTracker != null) {
+            val isTracking = gazeTracker!!.isTracking
+            Log.d("TRACKING STATE", "Tracking state : $isTracking")
+        }else{
+            Log.d("GAZE TRACKER NULL", "gazeTracker è null")
+        }
+
+        //start()
 
 
 
     }
 
     private fun start() {
-
-
 
     }
 
@@ -147,7 +198,13 @@ class MainActivity : AppCompatActivity() {
             blinkInfo: BlinkInfo,
             userStatusInfo: UserStatusInfo
         ) {
-            Log.i("Eyedid SDK", "Gaze coordinates: " + gazeInfo.x + "x" + gazeInfo.y)
+            Log.d("DENTRO ON METRICS", "siamo entrati in onMetrics")
+            Log.i("EYEDID SDK", "Gaze coordinates: " + gazeInfo.x + "x" + gazeInfo.y)
+            //dimensioni schermo 1080x2134
+            //val metrics = Resources.getSystem().displayMetrics
+            //Log.i("DIMENSIONI SCHERMO", "dimensioni schermo: " +  metrics.widthPixels + "x" + metrics.heightPixels)
+
+
             //aggiorna la posizione dell'immagine del puntatore
             runOnUiThread {
                 pointer.x = gazeInfo.x
@@ -156,6 +213,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         override fun onDrop(timestamp: Long) {
+            Log.d("DENTRO ON DROP", "drop frame : " + timestamp);
         }
     }
 
