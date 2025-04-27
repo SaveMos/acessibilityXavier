@@ -3,4 +3,6 @@
     <string name="title_home">Home</string>
     <string name="title_dashboard">Dashboard</string>
     <string name="title_notifications">Notifications</string>
+    <string name="accessibility_service_name">Gaze Tracker Service</string>
+    <string name="accessibility_service_description">Control the pointer with the view.</string>
 </resources>

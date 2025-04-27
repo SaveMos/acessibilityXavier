@@ -2,17 +2,21 @@ package it.unipi.dii.xavier
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Resources
 import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.Toast
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -33,15 +37,19 @@ import camp.visual.eyedid.gazetracker.metrics.GazeInfo
 import camp.visual.eyedid.gazetracker.metrics.UserStatusInfo
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import androidx.core.net.toUri
 
 
 class MainActivity : AppCompatActivity() {
 
-
     private val CAMERA_PERMISSION_REQUEST_CODE = 1000
 
-    private var offsetTop = 0      // statusBarH + actionBarH
-    private val POINT_SIZE = 20
+    //gestisce il risultato della richiesta di permesso di overlay
+    private lateinit var overlayPermissionLauncher: ActivityResultLauncher<Intent>
+
+    //classe principale che cattura la faccia dell'utente attraverso la fotocamera del dispositivo
+    //la processa e fornisce i dati relativi allo sguardo
+    private var gazeTracker: GazeTracker? = null
 
     //oggetto layout di root
     private lateinit var rootLayout: FrameLayout
@@ -54,7 +62,6 @@ class MainActivity : AppCompatActivity() {
     //punto per calibrazione
     private var currentCalibrationPoint: View? = null
 
-
     //ExecutorService è l'interfaccia per gestire il pool di thread
     //utile pe serializare le operazioni come ad esempio i frame della camera
     private val cameraExecutor: ExecutorService by lazy {
@@ -65,11 +72,13 @@ class MainActivity : AppCompatActivity() {
     // Handler to schedule tasks on the main thread
     private val handler = Handler(Looper.getMainLooper())
 
+    // sopra onCreate()
+    private var isCalibrated = false
+
     @SuppressLint("MissingInflatedId", "DiscouragedApi")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        //if (!Python.isStarted()) Python.start(AndroidPlatform(this))
         //nascondi action bar
         supportActionBar?.hide()
         setContentView(R.layout.activity_main)
@@ -78,17 +87,34 @@ class MainActivity : AppCompatActivity() {
         rootLayout.post {
             w = rootLayout.width
             h = rootLayout.height
-            /*
-            val loc = IntArray(2)
-            rootLayout.getLocationOnScreen(loc)
-            offsetTop = loc[1]    // OR loc[1] - statusBarH, a seconda di come hai costruito il layout
-            */
         }
-        val resId = resources.getIdentifier("status_bar_height", "dimen", "android")
-        val statusBarH = if (resId != 0) resources.getDimensionPixelSize(resId) else 0
-        val actionBarH = supportActionBar?.height ?: 0
-        offsetTop = statusBarH + actionBarH
 
+        //--------------------------------------------------------------------
+        //metodo per gestire i risultati dele attività
+        overlayPermissionLauncher = registerForActivityResult(
+            //avvia una nuova attività e gestisce il risultato (risposta al permesso di overlay)
+            ActivityResultContracts.StartActivityForResult()
+        ) {
+            //gestisce il risultato dell'interazione dell'utente con la finestra di permesso
+            if (Settings.canDrawOverlays(this)) {
+                startGazeTrackerService()
+            } else {
+                Toast.makeText(this, "Devi consentire il permesso per continuare", Toast.LENGTH_LONG).show()
+            }
+        }
+
+        //verifica se l'app ha il permesso di overlay
+        if (!Settings.canDrawOverlays(this)) {
+            //nuovo intento per chiedere il permesso
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                "package:$packageName".toUri()
+            )
+            overlayPermissionLauncher.launch(intent)
+        } else {
+            startGazeTrackerService()
+        }
+        //------------------------------------------------------------------------
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
             != PackageManager.PERMISSION_GRANTED) {
@@ -104,6 +130,30 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    //-----------------------------------------------------------------------------
+    /*
+    override fun onPause() {
+        super.onPause()
+        // Avvia il servizio quando l'utente lascia l'app
+        val serviceIntent = Intent(this,  GazeTrackerService::class.java)
+        ContextCompat.startForegroundService(this, serviceIntent)
+    }
+     */
+    override fun onPause() {
+        super.onPause()
+        if (isCalibrated) {
+            // manda il broadcast che sveglia il service
+            sendBroadcast(Intent(GazeTrackerService.ACTION_START_GAZE))
+        }
+    }
+    //viene selezionato il servizio e parte il foreground service
+    private fun startGazeTrackerService() {
+        //-----------------------------------------------------------------------------
+        val serviceIntent = Intent(this, GazeTrackerService::class.java)
+        ContextCompat.startForegroundService(this, serviceIntent)
+        //-----------------------------------------------------------------------------
+    }
+    //-----------------------------------------------------------------------------
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -126,10 +176,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    //classe principale che cattura la faccia dell'utente attraverso la fotocamera del dispositivo
-    //la processa e fornisce i dati relativi allo sguardo
-    private var gazeTracker: GazeTracker? = null
-
     private fun permissionGranted() {
         initGaze()
     }
@@ -139,7 +185,7 @@ class MainActivity : AppCompatActivity() {
         //un'istanza GazeTrackerOptions viene creata tramite il metodo build
         val options = GazeTrackerOptions.Builder().setUseGazeFilter(true).build()
 
-        //Log.d("DENTRO INIT GAZE", "siamo entrati in initGaze")
+        Log.d("DENTRO INIT GAZE", "siamo entrati in initGaze")
 
         GazeTracker.initGazeTracker(applicationContext, licenseKey, initializationCallback, options)
     }
@@ -148,14 +194,14 @@ class MainActivity : AppCompatActivity() {
     private val initializationCallback = object : InitializationCallback {
         override fun onInitialized(gazeTracker: GazeTracker?, error: InitializationErrorType) {
 
-            //Log.d("DENTRO ON INITIALIZED", "siamo entrati in onInitialized")
+            Log.d("DENTRO ON INITIALIZED", "siamo entrati in onInitialized")
 
             if (gazeTracker != null) {
                 initSuccess(gazeTracker)
 
                 //Log.d("PRIMA DI STATUS CALLBACK", "siamo prima di statusCallback")
 
-                gazeTracker.setStatusCallback(statusCallback);
+                gazeTracker.setStatusCallback(statusCallback)
 
                 //Log.d("DOPO STATUS CALLBACK", "siamo dopo statusCallback")
                 val metrics = Resources.getSystem().displayMetrics
@@ -170,7 +216,7 @@ class MainActivity : AppCompatActivity() {
                 //aggiungiamo la posizione della fotocamera al gazeTracker
                 gazeTracker.addCameraPosition(cameraPosition)
                 //apre fotocamera e inizia il tracking dello sguardo
-                gazeTracker?.startTracking()
+                gazeTracker.startTracking()
 
             } else {
                 initFail(error)
@@ -181,7 +227,7 @@ class MainActivity : AppCompatActivity() {
     private val statusCallback = object : StatusCallback {
         override fun onStarted() {
             // gazeTracker.startTracking() Success
-            //Log.d("DENTRO ON STARTED", "dentro on started")
+            Log.d("DENTRO ON STARTED", "dentro on started")
 
             gazeTracker?.setCalibrationCallback(calibrationCallback)
             //start the calibration process
@@ -223,6 +269,7 @@ class MainActivity : AppCompatActivity() {
                 currentCalibrationPoint?.let { rootLayout.removeView(it) }
                 currentCalibrationPoint = null
             }
+            isCalibrated = true      // calibrazione completata!
         }
 
         override fun onCalibrationCanceled(calibrationData: DoubleArray) {
@@ -231,34 +278,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-/*
-    private fun drawPointAt(xRaw: Float, yRaw: Float) {
-        // 1) Trasla y raw togliendo status+action bar
-        val yTranslated = yRaw - offsetTop
 
-        // 2) Clampa x e y perché il punto non fuoriesca dall’area utile
-        val xClamped = xRaw
-            .coerceIn(POINT_SIZE/2f, (w - POINT_SIZE/2).toFloat())
-        val yClamped = yTranslated
-            .coerceIn(POINT_SIZE/2f, (h - POINT_SIZE/2).toFloat())
-
-        // 3) Calcola margins per centrare il punto
-        val left = (xClamped - POINT_SIZE/2).toInt()
-        val top  = (yClamped - POINT_SIZE/2).toInt()
-
-        // 4) Rimuovi il vecchio e aggiungi il nuovo
-        currentCalibrationPoint?.let { rootLayout.removeView(it) }
-        val pointView = View(this).apply {
-            layoutParams = FrameLayout.LayoutParams(POINT_SIZE, POINT_SIZE).apply {
-                leftMargin = left
-                topMargin  = top
-            }
-            setBackgroundColor(Color.RED)
-        }
-        rootLayout.addView(pointView)
-        currentCalibrationPoint = pointView
-    }
-*/
 private fun drawPointAt(x: Float, y: Float) {
 
     Log.d("COORDINATE PUNTI CALIBRAZIONE", "coordinate calibrazione: " + x + " : " + y)
@@ -279,7 +299,7 @@ private fun drawPointAt(x: Float, y: Float) {
 
     private fun initSuccess(gazeTracker: GazeTracker) {
 
-        //Log.d("DENTRO INIT SUCCESS", "siamo entrati in initSuccess")
+        Log.d("DENTRO INIT SUCCESS", "siamo entrati in initSuccess")
 
         this.gazeTracker = gazeTracker
         /*
@@ -287,8 +307,10 @@ private fun drawPointAt(x: Float, y: Float) {
             Log.d("GAZE TRACKER NULL", "gazeTracker è null")
         }
         */
+        GazeTrackerSingleton.tracker = gazeTracker // Salviamo nel Singleton
+
         //registra una funzione che riceve gli eventi di tracking, triggerata quando succedono delle cose
-        this.gazeTracker!!.setTrackingCallback(trackingCallback);
+        this.gazeTracker!!.setTrackingCallback(trackingCallback)
         //Log.d("DOPO GAZE TRACKER", "siamo dopo gazeTracker")
     }
 
@@ -303,6 +325,7 @@ private fun drawPointAt(x: Float, y: Float) {
 
     private fun startCamera() {
         permissionGranted()
+        //GazeTrackerSingleton.tracker = gazeTracker // Salviamo nel Singleton
     }
 
     private val trackingCallback: TrackingCallback = object : TrackingCallback {
@@ -327,7 +350,7 @@ private fun drawPointAt(x: Float, y: Float) {
         }
 
         override fun onDrop(timestamp: Long) {
-            Log.d("DENTRO ON DROP", "drop frame : " + timestamp);
+            Log.d("DENTRO ON DROP", "drop frame : " + timestamp)
         }
     }
 
