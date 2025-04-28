@@ -42,7 +42,7 @@ import androidx.core.net.toUri
 
 class MainActivity : AppCompatActivity() {
 
-    private val CAMERA_PERMISSION_REQUEST_CODE = 1000
+    private val cameraPermissionRequestCode = 1000
 
     //gestisce il risultato della richiesta di permesso di overlay
     private lateinit var overlayPermissionLauncher: ActivityResultLauncher<Intent>
@@ -117,13 +117,13 @@ class MainActivity : AppCompatActivity() {
             != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this,
                 arrayOf(Manifest.permission.CAMERA),
-                CAMERA_PERMISSION_REQUEST_CODE)
+                cameraPermissionRequestCode)
         }else{
 
             pointer = findViewById(R.id.pointer)
             // il nuovo thread inizia dopo delay secondi dalla fine del precedente
             //cameraExecutor.scheduleWithFixedDelay({startCamera()}, 0, 1, TimeUnit.SECONDS)
-            cameraExecutor.execute(){startCamera()}
+            cameraExecutor.execute{startCamera()}
         }
     }
 
@@ -146,7 +146,7 @@ class MainActivity : AppCompatActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
-        if (requestCode == CAMERA_PERMISSION_REQUEST_CODE &&
+        if (requestCode == cameraPermissionRequestCode &&
             grantResults.isNotEmpty() &&
             grantResults[0] == PackageManager.PERMISSION_GRANTED) {
 
@@ -154,7 +154,7 @@ class MainActivity : AppCompatActivity() {
             pointer = findViewById(R.id.pointer)
             // il nuovo thread inizia dopo delay secondi dalla fine del precedente
             //cameraExecutor.scheduleWithFixedDelay({startCamera()}, 0, 1, TimeUnit.SECONDS)
-            cameraExecutor.execute(){startCamera()}
+            cameraExecutor.execute{startCamera()}
 
         } else {
             Toast.makeText(this, "Permesso fotocamera negato", Toast.LENGTH_SHORT).show()
@@ -168,16 +168,15 @@ class MainActivity : AppCompatActivity() {
     private fun initGaze() {
         val licenseKey = "dev_ptq5nrn1bep16ykwwlwlag5n6u3hz6q7vj0sbcxc"
         //un'istanza GazeTrackerOptions viene creata tramite il metodo build
-        val options = GazeTrackerOptions.Builder().setUseGazeFilter(true).build()
+        val options = GazeTrackerOptions.Builder().setUseGazeFilter(true).setUseBlink(true).build()
 
         Log.d("DENTRO INIT GAZE", "siamo entrati in initGaze")
 
         GazeTracker.initGazeTracker(applicationContext, licenseKey, initializationCallback, options)
     }
 
-    private val initializationCallback = object : InitializationCallback {
-        override fun onInitialized(gazeTracker: GazeTracker?, error: InitializationErrorType) {
-
+    private val initializationCallback =
+        InitializationCallback { gazeTracker, error ->
             Log.d("DENTRO ON INITIALIZED", "siamo entrati in onInitialized")
 
             if (gazeTracker != null) {
@@ -190,7 +189,7 @@ class MainActivity : AppCompatActivity() {
                 //Log.d("DOPO STATUS CALLBACK", "siamo dopo statusCallback")
                 val metrics = Resources.getSystem().displayMetrics
                 Log.i("DIMENSIONI SCHERMO", "dimensioni schermo: " +  metrics.widthPixels.toFloat() + " : " + metrics.heightPixels.toFloat())
-                Log.i("DIMENSIONI LAYOUT", "dimensioni layout: " +  w + " : " + h)
+                Log.i("DIMENSIONI LAYOUT", "dimensioni layout: $w : $h")
 
                 val cameraPosition =
                     CameraPosition("redmi note 8 pro",
@@ -205,7 +204,6 @@ class MainActivity : AppCompatActivity() {
                 initFail(error)
             }
         }
-    }
 
     private val statusCallback = object : StatusCallback {
         override fun onStarted() {
@@ -220,7 +218,7 @@ class MainActivity : AppCompatActivity() {
 
         override fun onStopped(error: StatusErrorType) {
             // gazeTracker.startTracking() Fail
-            Log.d("DENTRO ON STOPPED", "error: "+ error)
+            Log.d("DENTRO ON STOPPED", "error: $error")
         }
     }
 
@@ -262,7 +260,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun drawPointAt(x: Float, y: Float) {
 
-    Log.d("COORDINATE PUNTI CALIBRAZIONE", "coordinate calibrazione: " + x + " : " + y)
+    Log.d("COORDINATE PUNTI CALIBRAZIONE", "coordinate calibrazione: $x : $y")
     // Rimuove il punto precedente se esiste
     currentCalibrationPoint?.let { rootLayout.removeView(it) }
 
@@ -324,7 +322,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         override fun onDrop(timestamp: Long) {
-            Log.d("DENTRO ON DROP", "drop frame : " + timestamp)
+            Log.d("DENTRO ON DROP", "drop frame : $timestamp")
         }
     }
 

@@ -2,7 +2,6 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
 
-    id("com.chaquo.python") // enable Chaquopy
 }
 
 android {
@@ -15,18 +14,6 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
-
-        python {
-            buildPython = ["C:/Users/gabri/AppData/Local/Programs/Python/Python312/python.exe"] // o dove hai installato Python
-            pip {
-                install("numpy")
-                install("opencv-python")
-                //install("eyeGestures")
-                //install("opencv-python-headless")
-                //install("tensorflow")
-                //install("mediapipe")
-            }
-        }
 
 
         ndk {

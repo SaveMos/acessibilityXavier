@@ -5,41 +5,36 @@ import android.accessibilityservice.GestureDescription
 import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.graphics.Color
+import android.content.res.Resources
 import android.graphics.PixelFormat
 import android.graphics.PorterDuff
-import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
+import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewConfiguration
-import android.view.ViewGroup
-import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.widget.ImageView
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import camp.visual.eyedid.gazetracker.GazeTracker
-import camp.visual.eyedid.gazetracker.callback.InitializationCallback
 import camp.visual.eyedid.gazetracker.callback.TrackingCallback
-import camp.visual.eyedid.gazetracker.constant.GazeTrackerOptions
-import camp.visual.eyedid.gazetracker.constant.InitializationErrorType
 import camp.visual.eyedid.gazetracker.metrics.BlinkInfo
 import camp.visual.eyedid.gazetracker.metrics.FaceInfo
 import camp.visual.eyedid.gazetracker.metrics.GazeInfo
 import camp.visual.eyedid.gazetracker.metrics.UserStatusInfo
-import kotlin.io.path.Path
 import kotlin.math.abs
+import androidx.core.graphics.toColorInt
 
 class GazeTrackerService : AccessibilityService() {
 
@@ -57,7 +52,19 @@ class GazeTrackerService : AccessibilityService() {
     private var lastX = 0f
     private var lastY = 0f
     private var dwellStart: Long = 0
-    private val DWELL_THRESHOLD = 1500L // ms
+    private val dwellTreshold = 1500L // ms
+
+    // per swipe
+    private var currentZone: String? = null
+    private var zoneStart: Long = 0L
+    private val zoneTreshold = 1000L  // ms di dwell per zona
+    private var screenW = 0
+    private var screenH = 0
+
+    //menu personalizzato
+    private lateinit var navMenu: View
+    private lateinit var navMenuParams: WindowManager.LayoutParams
+
 
     //-------------------------------------------------------------------------
     companion object {
@@ -69,6 +76,10 @@ class GazeTrackerService : AccessibilityService() {
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate() {
         super.onCreate()
+
+        val metrics = Resources.getSystem().displayMetrics
+        screenW = metrics.widthPixels
+        screenH = metrics.heightPixels
 
         //serve per disegnare il puntatore nello schermo, sopra altre app
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
@@ -83,7 +94,7 @@ class GazeTrackerService : AccessibilityService() {
 
             scaleType = ImageView.ScaleType.FIT_CENTER
             // Applica un color filter verde neon (#39FF14) in modalità SRC_ATOP
-            setColorFilter(Color.parseColor("#39FF14"), PorterDuff.Mode.SRC_ATOP)
+            setColorFilter("#39FF14".toColorInt(), PorterDuff.Mode.SRC_ATOP)
             visibility = View.INVISIBLE
         }
 
@@ -98,33 +109,31 @@ class GazeTrackerService : AccessibilityService() {
             //serve per disegnare sopra altre app
             type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             //il puntatore non ruba il focus alle app sottostanti
-            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
             //puntatore parte in alto a sinistra
             gravity = Gravity.TOP or Gravity.START
 
         }
 
         // CONTROLLO PERMESSO PRIMA DI ADD VIEW
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+        if (!Settings.canDrawOverlays(this)) {
             Log.e("GazeTrackerService", "Permesso SYSTEM_ALERT_WINDOW mancante. Stoppo il servizio.")
             stopSelf()
             return
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channelId = "GazeTrackerChannel"
-            val channel = NotificationChannel(channelId, "Gaze Tracker Service", NotificationManager.IMPORTANCE_LOW)
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(channel)
+        val channelId = "GazeTrackerChannel"
+        val channel = NotificationChannel(channelId, "Gaze Tracker Service", NotificationManager.IMPORTANCE_LOW)
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.createNotificationChannel(channel)
 
-            val notification = NotificationCompat.Builder(this, channelId)
-                .setContentTitle("Gaze Tracker Attivo")
-                .setContentText("Il servizio sta tracciando il tuo sguardo")
-                .setSmallIcon(R.drawable.ic_launcher_foreground) // usa una tua icona
-                .build()
+        val notification = NotificationCompat.Builder(this, channelId)
+            .setContentTitle("Gaze Tracker Attivo")
+            .setContentText("Il servizio sta tracciando il tuo sguardo")
+            .setSmallIcon(R.drawable.ic_launcher_foreground) // usa una tua icona
+            .build()
 
-            startForeground(1, notification)
-        }
+        startForeground(1, notification)
 
 
         Log.d("DENTRO ON CREATE GTS 2", "dentro on create gts 2")
@@ -151,9 +160,55 @@ class GazeTrackerService : AccessibilityService() {
         }
         registerReceiver(startReceiver, IntentFilter(ACTION_START_GAZE))
 
+        val navigationBarHeight = calcNavigationBarHeight()
+
+        // infla il layout
+        navMenu = LayoutInflater.from(this).inflate(R.layout.nav_menu, null)
+
+        // posizionalo appena sopra la navigation bar, centrato orizzontalmente
+        navMenuParams = WindowManager.LayoutParams().apply {
+            width = WindowManager.LayoutParams.WRAP_CONTENT
+            height = WindowManager.LayoutParams.WRAP_CONTENT
+            format = PixelFormat.TRANSLUCENT
+            type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            y = navigationBarHeight + 16  // spostalo 16px sopra la nav bar
+        }
+
         //-------------------------------------------------------------------------
 
     }
+    //-----------------------------------------------------------------------------
+    private fun calcNavigationBarHeight(): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Ottieni le metriche della finestra corrente
+            val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+            val windowMetrics = wm.currentWindowMetrics
+            // Prendi l’inset delle navigation bars (bordo inferiore)
+            val insets = windowMetrics.windowInsets
+                .getInsetsIgnoringVisibility(WindowInsets.Type.navigationBars())
+            insets.bottom
+        } else {
+            // Fallback pre-API 30: usa un valore dp standard (es. 48 dp convertiti in pixel)
+            val dp = 48
+            (dp * resources.displayMetrics.density + 0.5f).toInt()
+        }
+    }
+
+    private fun showNavMenu() {
+        Handler(Looper.getMainLooper()).post {
+            navMenu.visibility = View.VISIBLE
+        }
+    }
+    private fun hideNavMenu() {
+        Handler(Looper.getMainLooper()).post {
+            navMenu.visibility = View.GONE
+        }
+    }
+
+    //-----------------------------------------------------------------------------
 
     private val trackingCallback = object : TrackingCallback {
         override fun onMetrics(
@@ -171,7 +226,21 @@ class GazeTrackerService : AccessibilityService() {
                 windowManager.updateViewLayout(pointerView, layoutParams)
             }
 
-            handleDwellClick(gazeInfo.x, gazeInfo.y)
+            //------------------------------------------------------------------
+            //handleDwellClick(gazeInfo.x, gazeInfo.y)
+            // 2) zone-based actions
+            handleZone(gazeInfo.x, gazeInfo.y)
+
+            // 3) solo se non siamo in una zona attiva, permetti il dwell-click
+            if (currentZone == null) {
+                handleDwellClick(gazeInfo.x, gazeInfo.y)
+            }
+            if(blinkInfo.isBlink){
+                Log.d("BLINK RILEVATO", "blink rilevato")
+                showNavMenu()
+
+            }
+            //------------------------------------------------------------------
         }
         override fun onDrop(timestamp: Long) { /*…*/ }
     }
@@ -181,7 +250,7 @@ class GazeTrackerService : AccessibilityService() {
         if (abs(x - lastX) < 20 && abs(y - lastY) < 20) {
             // non si è mosso quasi
             if (dwellStart == 0L) dwellStart = System.currentTimeMillis()
-            else if (System.currentTimeMillis() - dwellStart > DWELL_THRESHOLD) {
+            else if (System.currentTimeMillis() - dwellStart > dwellTreshold) {
                 performClick(x.toInt(), y.toInt())
                 dwellStart = 0L  // reset
             }
@@ -191,6 +260,82 @@ class GazeTrackerService : AccessibilityService() {
         }
         lastX = x
         lastY = y
+    }
+
+    private fun handleZone(x: Float, y: Float) {
+        // determina in quale zona sei
+        val newZone = when {
+            x < screenW * 0.2f   -> "LEFT"
+            x > screenW * 0.8f   -> "RIGHT"
+            y <= screenH * 0.05f   -> "UP"
+            y > screenH * 0.05f && y <= screenH * 0.15f  -> "SWIPE_UP"
+            y > screenH * 0.85f && y < screenH * 0.95f  -> "DOWN"
+            else                 -> null
+        }
+
+        if (newZone == null) {
+            // sei nella zona centrale: reset
+            currentZone = null
+            zoneStart = 0L
+            return
+        }
+
+        if (newZone == currentZone) {
+            // stai ancora guardando nella stessa zona
+            if (zoneStart == 0L) zoneStart = System.currentTimeMillis()
+            else if (System.currentTimeMillis() - zoneStart > zoneTreshold) {
+                // superata la soglia, esegui l’azione
+                when (newZone) {
+                    "LEFT"  -> performSwipeLeft()
+                    "RIGHT" -> performSwipeRight()
+                    "UP"    -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
+                    "SWIPE_UP"  -> performSwipeUp()
+                    "DOWN"  -> performSwipeDown()
+                }
+                // reset per non ripetere in loop
+                zoneStart = 0L
+            }
+        } else {
+            // entri in una nuova zona
+            currentZone = newZone
+            zoneStart = 0L
+        }
+    }
+
+    private fun performSwipeRight() {
+        val path = android.graphics.Path().apply {
+            moveTo(screenW * 0.9f, screenH / 2f)
+            lineTo(screenW * 0.1f, screenH / 2f)
+        }
+        val stroke = GestureDescription.StrokeDescription(path, 0, 500L)
+        dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
+    }
+
+    private fun performSwipeLeft() {
+        val path = android.graphics.Path().apply {
+            moveTo(screenW * 0.1f, screenH / 2f)
+            lineTo(screenW * 0.9f, screenH / 2f)
+        }
+        val stroke = GestureDescription.StrokeDescription(path, 0, 500L)
+        dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
+    }
+
+    private fun performSwipeUp() {
+        val path = android.graphics.Path().apply {
+            moveTo(screenW / 2f, screenH * 0.1f)
+            lineTo(screenW / 2f, screenH * 0.9f)
+        }
+        val stroke = GestureDescription.StrokeDescription(path, 0, 500L)
+        dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
+    }
+
+    private fun performSwipeDown() {
+        val path = android.graphics.Path().apply {
+            moveTo(screenW / 2f, screenH * 0.9f)
+            lineTo(screenW / 2f, screenH * 0.1f)
+        }
+        val stroke = GestureDescription.StrokeDescription(path, 0, 500L)
+        dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
     }
 
     @SuppressLint("ServiceCast")
@@ -233,10 +378,27 @@ class GazeTrackerService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        windowManager.addView(navMenu, navMenuParams)
+        navMenu.visibility = View.GONE
+
+        // trova gli ImageView e metti i click listener
+        navMenu.findViewById<ImageView>(R.id.btn_back).setOnClickListener {
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            hideNavMenu()
+        }
+        navMenu.findViewById<ImageView>(R.id.btn_home).setOnClickListener {
+            performGlobalAction(GLOBAL_ACTION_HOME)
+            hideNavMenu()
+        }
+        navMenu.findViewById<ImageView>(R.id.btn_recents).setOnClickListener {
+            performGlobalAction(GLOBAL_ACTION_RECENTS)
+            hideNavMenu()
+        }
 
         Log.d("SCHERMO ATTIVO", "AccessibilityService connesso — flags: ${serviceInfo.flags}")
     }
 
+    @SuppressLint("SwitchIntDef")
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
 
@@ -264,5 +426,6 @@ class GazeTrackerService : AccessibilityService() {
         try { windowManager.removeView(pointerView) } catch (_: Exception) {}
         super.onDestroy()
     }
+
 
 }
