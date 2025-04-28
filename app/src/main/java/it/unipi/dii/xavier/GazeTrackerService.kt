@@ -9,6 +9,7 @@ import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.PorterDuff
@@ -19,6 +20,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
+import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
@@ -49,6 +51,8 @@ class GazeTrackerService : AccessibilityService() {
     private lateinit var layoutParams: WindowManager.LayoutParams
     private var gazeTracker: GazeTracker? = null
 
+    private lateinit var startReceiver: BroadcastReceiver
+
     // per dwell-click
     private var lastX = 0f
     private var lastY = 0f
@@ -60,16 +64,8 @@ class GazeTrackerService : AccessibilityService() {
         const val ACTION_START_GAZE = "it.unipi.dii.xavier.START_GAZE"
         // (eventualmente) const val ACTION_STOP_GAZE = "…STOP_GAZE"
     }
-
-    private val startReceiver = object: BroadcastReceiver() {
-        override fun onReceive(ctx: Context, intent: Intent) {
-            if (intent.action == ACTION_START_GAZE) {
-                startGazeTracking()
-            }
-        }
-    }
     //-------------------------------------------------------------------------
-    @SuppressLint("ForegroundServiceType")
+    @SuppressLint("ForegroundServiceType", "UnspecifiedRegisterReceiverFlag")
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate() {
         super.onCreate()
@@ -88,6 +84,7 @@ class GazeTrackerService : AccessibilityService() {
             scaleType = ImageView.ScaleType.FIT_CENTER
             // Applica un color filter verde neon (#39FF14) in modalità SRC_ATOP
             setColorFilter(Color.parseColor("#39FF14"), PorterDuff.Mode.SRC_ATOP)
+            visibility = View.INVISIBLE
         }
 
         Log.d("DENTRO ON CREATE GTS 1", "dentro on create gts 1")
@@ -104,6 +101,7 @@ class GazeTrackerService : AccessibilityService() {
             flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
             //puntatore parte in alto a sinistra
             gravity = Gravity.TOP or Gravity.START
+
         }
 
         // CONTROLLO PERMESSO PRIMA DI ADD VIEW
@@ -131,38 +129,31 @@ class GazeTrackerService : AccessibilityService() {
 
         Log.d("DENTRO ON CREATE GTS 2", "dentro on create gts 2")
         //mostra a schermo il puntatore con i parametri appena creati
-        //-------------------------------------------------------------------------
-        //windowManager.addView(pointerView, layoutParams)
-        //-------------------------------------------------------------------------
-        //recupero del gazeTracker già calibrato ed inizializzato
-        gazeTracker = GazeTrackerSingleton.tracker
 
         Log.d("DENTRO ON CREATE GTS 3", "dentro on create gts 3")
         //-------------------------------------------------------------------------
-        /*
-        //utilizza il trackingCallback per il tracciamento
-        if (gazeTracker != null) {
-            gazeTracker?.setTrackingCallback(trackingCallback)
-            gazeTracker?.startTracking()
-        } else {
-            Log.e("GazeService", "GazeTracker è null, inizializzazione fallita!")
-            stopSelf() // chiude il servizio se qualcosa è andato storto
+        // registra il receiver che aspetta il “via libera”
+        startReceiver = object: BroadcastReceiver() {
+            override fun onReceive(ctx: Context, intent: Intent) {
+                Log.d("DENTRO ON RECEIVE", "dentro on receive")
+                if (intent.action == ACTION_START_GAZE) {
+                    Log.d("DENTRO IF ON RECEIVE", "dentro if on receive")
+                    // 1) aggiungi l’overlay se non è già stato fatto
+                    try { windowManager.addView(pointerView, layoutParams) } catch (_: Exception) {}
+                    pointerView.visibility = View.VISIBLE
+
+                    // 2) avvia gaze-tracker
+                    gazeTracker = GazeTrackerSingleton.tracker
+                    gazeTracker?.setTrackingCallback(trackingCallback)
+                    gazeTracker?.startTracking()
+                }
+            }
         }
-         */
+        registerReceiver(startReceiver, IntentFilter(ACTION_START_GAZE))
+
         //-------------------------------------------------------------------------
 
     }
-    //-------------------------------------------------------------------------
-    private fun startGazeTracking() {
-        // 1) aggiungi l’overlay (se già aggiunto, integralo con try/catch)
-        try { windowManager.addView(pointerView, layoutParams) } catch (_: Exception) {}
-        // 2) parti col tracking
-        gazeTracker?.apply {
-            setTrackingCallback(trackingCallback)
-            startTracking()
-        }
-    }
-    //-------------------------------------------------------------------------
 
     private val trackingCallback = object : TrackingCallback {
         override fun onMetrics(
@@ -266,20 +257,7 @@ class GazeTrackerService : AccessibilityService() {
         gazeTracker?.stopTracking()
         try { windowManager.removeView(pointerView) } catch (_: Exception) {}
     }
-    //-------------------------------------------------------------------------
-    /*
-    override fun onDestroy() {
-        gazeTracker?.stopTracking()
-        try {
-            windowManager.removeView(pointerView)
-        } catch (e: Exception) {
-            Log.w("GazeTrackerService", "Pointer view non rimossa correttamente: ${e.message}")
-        }
-        super.onDestroy()
-    }
 
-    */
-    //-------------------------------------------------------------------------
     override fun onDestroy() {
         unregisterReceiver(startReceiver)
         gazeTracker?.stopTracking()

@@ -72,9 +72,6 @@ class MainActivity : AppCompatActivity() {
     // Handler to schedule tasks on the main thread
     private val handler = Handler(Looper.getMainLooper())
 
-    // sopra onCreate()
-    private var isCalibrated = false
-
     @SuppressLint("MissingInflatedId", "DiscouragedApi")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -130,28 +127,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    //-----------------------------------------------------------------------------
-    /*
     override fun onPause() {
         super.onPause()
-        // Avvia il servizio quando l'utente lascia l'app
-        val serviceIntent = Intent(this,  GazeTrackerService::class.java)
-        ContextCompat.startForegroundService(this, serviceIntent)
-    }
-     */
-    override fun onPause() {
-        super.onPause()
-        if (isCalibrated) {
-            // manda il broadcast che sveglia il service
-            sendBroadcast(Intent(GazeTrackerService.ACTION_START_GAZE))
-        }
+        // finita calibrazione!
+        val intent = Intent(GazeTrackerService.ACTION_START_GAZE)
+        sendBroadcast(intent)
+        Log.d("DOPO SEND BROADCAST", "dopo send broadcast")
     }
     //viene selezionato il servizio e parte il foreground service
     private fun startGazeTrackerService() {
-        //-----------------------------------------------------------------------------
-        val serviceIntent = Intent(this, GazeTrackerService::class.java)
-        ContextCompat.startForegroundService(this, serviceIntent)
-        //-----------------------------------------------------------------------------
+
     }
     //-----------------------------------------------------------------------------
     override fun onRequestPermissionsResult(
@@ -190,7 +175,6 @@ class MainActivity : AppCompatActivity() {
         GazeTracker.initGazeTracker(applicationContext, licenseKey, initializationCallback, options)
     }
 
-
     private val initializationCallback = object : InitializationCallback {
         override fun onInitialized(gazeTracker: GazeTracker?, error: InitializationErrorType) {
 
@@ -207,7 +191,6 @@ class MainActivity : AppCompatActivity() {
                 val metrics = Resources.getSystem().displayMetrics
                 Log.i("DIMENSIONI SCHERMO", "dimensioni schermo: " +  metrics.widthPixels.toFloat() + " : " + metrics.heightPixels.toFloat())
                 Log.i("DIMENSIONI LAYOUT", "dimensioni layout: " +  w + " : " + h)
-
 
                 val cameraPosition =
                     CameraPosition("redmi note 8 pro",
@@ -232,7 +215,6 @@ class MainActivity : AppCompatActivity() {
             gazeTracker?.setCalibrationCallback(calibrationCallback)
             //start the calibration process
             gazeTracker?.startCalibration(CalibrationModeType.FIVE_POINT, AccuracyCriteria.HIGH)
-
 
         }
 
@@ -269,7 +251,6 @@ class MainActivity : AppCompatActivity() {
                 currentCalibrationPoint?.let { rootLayout.removeView(it) }
                 currentCalibrationPoint = null
             }
-            isCalibrated = true      // calibrazione completata!
         }
 
         override fun onCalibrationCanceled(calibrationData: DoubleArray) {
@@ -279,7 +260,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-private fun drawPointAt(x: Float, y: Float) {
+    private fun drawPointAt(x: Float, y: Float) {
 
     Log.d("COORDINATE PUNTI CALIBRAZIONE", "coordinate calibrazione: " + x + " : " + y)
     // Rimuove il punto precedente se esiste
@@ -296,17 +277,12 @@ private fun drawPointAt(x: Float, y: Float) {
     currentCalibrationPoint = pointView  // Salva il riferimento al punto
 }
 
-
     private fun initSuccess(gazeTracker: GazeTracker) {
 
         Log.d("DENTRO INIT SUCCESS", "siamo entrati in initSuccess")
 
         this.gazeTracker = gazeTracker
-        /*
-        if(this.gazeTracker ==  null){
-            Log.d("GAZE TRACKER NULL", "gazeTracker è null")
-        }
-        */
+
         GazeTrackerSingleton.tracker = gazeTracker // Salviamo nel Singleton
 
         //registra una funzione che riceve gli eventi di tracking, triggerata quando succedono delle cose
@@ -336,8 +312,6 @@ private fun drawPointAt(x: Float, y: Float) {
             blinkInfo: BlinkInfo,
             userStatusInfo: UserStatusInfo
         ) {
-            //Log.d("DENTRO ON METRICS", "siamo entrati in onMetrics")
-            //Log.i("EYEDID SDK", "Gaze coordinates: " + gazeInfo.x + "x" + gazeInfo.y)
             //dimensioni schermo 1080x2134
             //val metrics = Resources.getSystem().displayMetrics
             //Log.i("DIMENSIONI SCHERMO", "dimensioni schermo: " +  metrics.widthPixels + "x" + metrics.heightPixels)
