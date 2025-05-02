@@ -2,7 +2,6 @@ package it.unipi.dii.xavier
 
 import GazeTrackerSingleton
 import android.Manifest
-import android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager

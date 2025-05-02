@@ -10,6 +10,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.content.res.Resources
 import android.graphics.PixelFormat
 import android.graphics.PorterDuff
@@ -68,13 +69,16 @@ class GazeTrackerService : AccessibilityService() {
     private lateinit var navMenu: View
     private lateinit var navMenuParams: WindowManager.LayoutParams
 
+    private lateinit var homePackage: String
+    private var isHomeScreen = false
+
     //-------------------------------------------------------------------------
     companion object {
         const val ACTION_START_GAZE = "it.unipi.dii.xavier.START_GAZE"
         // (eventualmente) const val ACTION_STOP_GAZE = "…STOP_GAZE"
     }
     //-------------------------------------------------------------------------
-    @SuppressLint("ForegroundServiceType", "UnspecifiedRegisterReceiverFlag")
+    @SuppressLint("ForegroundServiceType", "UnspecifiedRegisterReceiverFlag", "InflateParams")
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate() {
         super.onCreate()
@@ -186,6 +190,12 @@ class GazeTrackerService : AccessibilityService() {
 
         //-------------------------------------------------------------------------
 
+        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        val res  = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+        if (res != null) {
+            homePackage = res.activityInfo.packageName
+        }
+
     }
     //-----------------------------------------------------------------------------
     private val backReceiver = object : BroadcastReceiver() {
@@ -247,7 +257,7 @@ class GazeTrackerService : AccessibilityService() {
             handleZone(gazeInfo.x, gazeInfo.y)
 
             // 3) solo se non siamo in una zona attiva, permetti il dwell-click
-            if (currentZone == null) {
+            if (currentZone == null || (currentZone == "SWIPE_UP" && isHomeScreen)) {
                 handleDwellClick(gazeInfo.x, gazeInfo.y)
             }
 
@@ -285,8 +295,8 @@ class GazeTrackerService : AccessibilityService() {
     private fun handleZone(x: Float, y: Float) {
         // determina in quale zona sei
         val newZone = when {
-            x < screenW * 0.2f   -> "LEFT"
-            x > screenW * 0.8f   -> "RIGHT"
+            x < screenW * 0.05f   -> "LEFT"
+            x > screenW * 0.95f   -> "RIGHT"
             y <= screenH * 0.05f   -> "UP"
             y > screenH * 0.05f && y <= screenH * 0.15f  -> "SWIPE_UP"
             y > screenH * 0.85f && y < screenH * 0.95f  -> "DOWN"
@@ -309,7 +319,15 @@ class GazeTrackerService : AccessibilityService() {
                     "LEFT"  -> performSwipeLeft()
                     "RIGHT" -> performSwipeRight()
                     "UP"    -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
-                    "SWIPE_UP"  -> performSwipeUp()
+                    //"SWIPE_UP"  -> performSwipeUp()
+                    "SWIPE_UP" -> {
+                        if (!isHomeScreen) {
+                            performSwipeUp()
+                        } else {
+                            // Qui niente: così lasci passare il click sugli icon della Home
+
+                        }
+                    }
                     "DOWN"  -> performSwipeDown()
                 }
                 // reset per non ripetere in loop
@@ -340,12 +358,22 @@ class GazeTrackerService : AccessibilityService() {
         dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
     }
 
+    /*
     private fun performSwipeUp() {
         val path = android.graphics.Path().apply {
             moveTo(screenW / 2f, screenH * 0.1f)
             lineTo(screenW / 2f, screenH * 0.9f)
         }
         val stroke = GestureDescription.StrokeDescription(path, 0, 500L)
+        dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
+    }
+     */
+    private fun performSwipeUp() {
+        val path = android.graphics.Path().apply {
+            moveTo(screenW / 2f, screenH * 0.3f) // Quasi al bordo inferiore
+            lineTo(screenW / 2f, screenH * 0.98f)  // Non troppo in alto
+        }
+        val stroke = GestureDescription.StrokeDescription(path, 0, 300L)
         dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
     }
 
@@ -381,6 +409,9 @@ class GazeTrackerService : AccessibilityService() {
             )
             Log.d("SERVIZI ABILITATI", "Enabled services: $enabledServices")
             // Se non vedi il tuo pacchetto qui dentro, non lo hai abilitato
+
+            val myPackage = applicationContext.packageName
+            Log.d("SERVIZIO IN USO", "Pacchetto del servizio: $myPackage")
 
             val sent = dispatchGesture(gesture, object : GestureResultCallback() {
                 override fun onCompleted(gestureDescription: GestureDescription) {
@@ -435,6 +466,11 @@ class GazeTrackerService : AccessibilityService() {
             }
 
         }
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val pkg = event.packageName?.toString()
+            isHomeScreen = pkg == homePackage
+            Log.d("GTS", "Package in primo piano: $pkg — isHomeScreen=$isHomeScreen")
+        }
     }
 
     override fun onInterrupt() {
@@ -451,6 +487,4 @@ class GazeTrackerService : AccessibilityService() {
         try { windowManager.removeView(pointerView) } catch (_: Exception) {}
         super.onDestroy()
     }
-
-
 }
