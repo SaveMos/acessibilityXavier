@@ -6,24 +6,25 @@
     android:layout_height="wrap_content"
     android:padding="8dp"
     android:background="@drawable/bg_nav_menu"
+    android:gravity="center"
     android:visibility="gone">
 
     <ImageView
         android:id="@+id/btn_back"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
         android:src="@drawable/ic_back" />
 
     <ImageView
         android:id="@+id/btn_home"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
         android:src="@drawable/ic_home" />
 
     <ImageView
         android:id="@+id/btn_recents"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
         android:src="@drawable/ic_recents" />
 </LinearLayout>
 

@@ -1,6 +1,8 @@
 package it.unipi.dii.xavier
 
+import GazeTrackerSingleton
 import android.Manifest
+import android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -20,6 +22,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import camp.visual.eyedid.gazetracker.GazeTracker
 import camp.visual.eyedid.gazetracker.callback.CalibrationCallback
 import camp.visual.eyedid.gazetracker.callback.InitializationCallback
@@ -37,7 +40,6 @@ import camp.visual.eyedid.gazetracker.metrics.GazeInfo
 import camp.visual.eyedid.gazetracker.metrics.UserStatusInfo
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import androidx.core.net.toUri
 
 
 class MainActivity : AppCompatActivity() {
@@ -61,6 +63,8 @@ class MainActivity : AppCompatActivity() {
 
     //punto per calibrazione
     private var currentCalibrationPoint: View? = null
+    //booleano per calibrazione
+    private var isCalibrated = false
 
     //ExecutorService è l'interfaccia per gestire il pool di thread
     //utile pe serializare le operazioni come ad esempio i frame della camera
@@ -244,6 +248,7 @@ class MainActivity : AppCompatActivity() {
         //chiamata solo uan volta alla fine
         override fun onCalibrationFinished(calibrationData: DoubleArray) {
             // saveCalibration(calibrationData)
+            isCalibrated = true
             runOnUiThread {
                 // remove calibration UI
                 currentCalibrationPoint?.let { rootLayout.removeView(it) }
@@ -318,6 +323,23 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 pointer.x = gazeInfo.x
                 pointer.y = gazeInfo.y
+            }
+            if (isCalibrated) {
+                if (blinkInfo.isBlinkRight && !blinkInfo.isBlinkLeft) {
+                    Log.d("BLINK DESTRO RILEVATO", "blink destro rilevato: $blinkInfo")
+                    //Restart the calibration process
+                    isCalibrated = false
+                    gazeTracker?.startCalibration(
+                        CalibrationModeType.FIVE_POINT,
+                        AccuracyCriteria.HIGH
+                    )
+
+                } else if (blinkInfo.isBlinkLeft && !blinkInfo.isBlinkRight) {
+                    Log.d("BLINK SINISTRO RILEVATO", "blink rilevato")
+                    isCalibrated = false
+                    val i = Intent("it.unipi.dii.xavier.BACK")
+                    sendBroadcast(i)
+                }
             }
         }
 

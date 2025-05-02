@@ -1,5 +1,6 @@
 package it.unipi.dii.xavier
 
+import GazeTrackerSingleton
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.annotation.SuppressLint
@@ -27,6 +28,8 @@ import android.view.accessibility.AccessibilityEvent
 import android.widget.ImageView
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
+import androidx.core.graphics.toColorInt
+import androidx.core.view.isVisible
 import camp.visual.eyedid.gazetracker.GazeTracker
 import camp.visual.eyedid.gazetracker.callback.TrackingCallback
 import camp.visual.eyedid.gazetracker.metrics.BlinkInfo
@@ -34,7 +37,7 @@ import camp.visual.eyedid.gazetracker.metrics.FaceInfo
 import camp.visual.eyedid.gazetracker.metrics.GazeInfo
 import camp.visual.eyedid.gazetracker.metrics.UserStatusInfo
 import kotlin.math.abs
-import androidx.core.graphics.toColorInt
+
 
 class GazeTrackerService : AccessibilityService() {
 
@@ -64,7 +67,6 @@ class GazeTrackerService : AccessibilityService() {
     //menu personalizzato
     private lateinit var navMenu: View
     private lateinit var navMenuParams: WindowManager.LayoutParams
-
 
     //-------------------------------------------------------------------------
     companion object {
@@ -107,7 +109,7 @@ class GazeTrackerService : AccessibilityService() {
             //supporta trasparenze
             format = PixelFormat.TRANSLUCENT
             //serve per disegnare sopra altre app
-            type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
             //il puntatore non ruba il focus alle app sottostanti
             flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
             //puntatore parte in alto a sinistra
@@ -159,6 +161,8 @@ class GazeTrackerService : AccessibilityService() {
             }
         }
         registerReceiver(startReceiver, IntentFilter(ACTION_START_GAZE))
+        val filter = IntentFilter("it.unipi.dii.xavier.BACK")
+        registerReceiver(backReceiver, filter)
 
         val navigationBarHeight = calcNavigationBarHeight()
 
@@ -167,20 +171,31 @@ class GazeTrackerService : AccessibilityService() {
 
         // posizionalo appena sopra la navigation bar, centrato orizzontalmente
         navMenuParams = WindowManager.LayoutParams().apply {
-            width = WindowManager.LayoutParams.WRAP_CONTENT
-            height = WindowManager.LayoutParams.WRAP_CONTENT
+            //width = WindowManager.LayoutParams.WRAP_CONTENT
+            //height = WindowManager.LayoutParams.WRAP_CONTENT
+            width = 700
+            height = 250
             format = PixelFormat.TRANSLUCENT
             type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
-            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            y = navigationBarHeight + 16  // spostalo 16px sopra la nav bar
+            //flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    //WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+            //gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            gravity = Gravity.CENTER
+            y = navigationBarHeight + 50  // spostalo 16px sopra la nav bar
         }
 
         //-------------------------------------------------------------------------
 
     }
     //-----------------------------------------------------------------------------
+    private val backReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == "it.unipi.dii.xavier.BACK") {
+                performGlobalAction(GLOBAL_ACTION_BACK)
+            }
+        }
+    }
+
     private fun calcNavigationBarHeight(): Int {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             // Ottieni le metriche della finestra corrente
@@ -235,11 +250,16 @@ class GazeTrackerService : AccessibilityService() {
             if (currentZone == null) {
                 handleDwellClick(gazeInfo.x, gazeInfo.y)
             }
-            if(blinkInfo.isBlink){
-                Log.d("BLINK RILEVATO", "blink rilevato")
+
+            if(blinkInfo.isBlinkRight && !blinkInfo.isBlinkLeft && !navMenu.isVisible){
+                Log.d("BLINK DESTRO RILEVATO", "blink destro rilevato: $blinkInfo")
                 showNavMenu()
 
+            }else if(blinkInfo.isBlinkLeft && !blinkInfo.isBlinkRight && navMenu.isVisible ){
+                Log.d("BLINK SINISTRO RILEVATO", "blink rilevato")
+                hideNavMenu()
             }
+
             //------------------------------------------------------------------
         }
         override fun onDrop(timestamp: Long) { /*…*/ }
@@ -383,7 +403,11 @@ class GazeTrackerService : AccessibilityService() {
 
         // trova gli ImageView e metti i click listener
         navMenu.findViewById<ImageView>(R.id.btn_back).setOnClickListener {
-            performGlobalAction(GLOBAL_ACTION_BACK)
+
+            Handler(Looper.getMainLooper()).postDelayed({
+               performGlobalAction(GLOBAL_ACTION_BACK)
+            }, 100)
+
             hideNavMenu()
         }
         navMenu.findViewById<ImageView>(R.id.btn_home).setOnClickListener {
@@ -422,6 +446,7 @@ class GazeTrackerService : AccessibilityService() {
 
     override fun onDestroy() {
         unregisterReceiver(startReceiver)
+        unregisterReceiver(backReceiver)
         gazeTracker?.stopTracking()
         try { windowManager.removeView(pointerView) } catch (_: Exception) {}
         super.onDestroy()
