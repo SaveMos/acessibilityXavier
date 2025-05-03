@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:gravity="center">
+
+    <!-- Lettere S T U V W X Y Z -->
+    <LinearLayout android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <Button android:id="@+id/btnS" style="@style/KeyboardButton" android:text="S"/>
+        <Button android:id="@+id/btnT" style="@style/KeyboardButton" android:text="T"/>
+        <Button android:id="@+id/btnU" style="@style/KeyboardButton" android:text="U"/>
+        <Button android:id="@+id/btnV" style="@style/KeyboardButton" android:text="V"/>
+        <Button android:id="@+id/btnW" style="@style/KeyboardButton" android:text="W"/>
+        <Button android:id="@+id/btnX" style="@style/KeyboardButton" android:text="X"/>
+        <Button android:id="@+id/btnY" style="@style/KeyboardButton" android:text="Y"/>
+        <Button android:id="@+id/btnZ" style="@style/KeyboardButton" android:text="Z"/>
+        <Button android:id="@+id/btnEmoji" style="@style/KeyboardButton" android:text="\uD83D\uDE00"/> <!-- Emoji -->
+    </LinearLayout>
+
+    <!-- Tasti inferiori -->
+    <LinearLayout android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="12dp">
+        <Button android:id="@+id/btnShift" style="@style/KeyboardButton" android:text="⇧"/>
+        <Button android:id="@+id/btnSpace" style="@style/KeyboardButton" android:text="⎵"/>
+        <Button android:id="@+id/btnBack" style="@style/KeyboardButton" android:text="Back"/>
+    </LinearLayout>
+</LinearLayout>

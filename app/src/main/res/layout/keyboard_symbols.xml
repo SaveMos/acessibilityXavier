@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:gravity="center">
+
+    <!-- Riga 1 -->
+    <LinearLayout android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <Button android:id="@+id/btnExcl" style="@style/KeyboardButton" android:text="!"/>
+        <Button android:id="@+id/btnDot" style="@style/KeyboardButton" android:text="."/>
+        <Button android:id="@+id/btnComma" style="@style/KeyboardButton" android:text=","/>
+        <Button android:id="@+id/btnSemi" style="@style/KeyboardButton" android:text=";"/>
+    </LinearLayout>
+
+    <!-- Riga 2 -->
+    <LinearLayout android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <Button android:id="@+id/btnColon" style="@style/KeyboardButton" android:text=":"/>
+        <Button android:id="@+id/btnMinus" style="@style/KeyboardButton" android:text="-"/>
+        <Button android:id="@+id/btnUnderscore" style="@style/KeyboardButton" android:text="_"/>
+        <Button android:id="@+id/btnQuestion" style="@style/KeyboardButton" android:text="\?"/>
+    </LinearLayout>
+
+    <!-- Riga 3 -->
+    <LinearLayout android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <Button android:id="@+id/btnAt" style="@style/KeyboardButton" android:text="\@"/>
+        <Button android:id="@+id/btnPlus" style="@style/KeyboardButton" android:text="+"/>
+        <Button android:id="@+id/btnSpace" style="@style/KeyboardButton" android:text="⎵"/>
+        <Button android:id="@+id/btnBack" style="@style/KeyboardButton" android:text="Back"/>
+    </LinearLayout>
+</LinearLayout>
