@@ -7,30 +7,29 @@
     android:gravity="center"
     android:background="#EEE">
 
-    <!-- Lettere A B C D E F G H I -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal">
-        <Button android:id="@+id/btn_a" style="@style/KeyboardButton" android:text="a"/>
-        <Button android:id="@+id/btn_b" style="@style/KeyboardButton" android:text="b"/>
-        <Button android:id="@+id/btn_c" style="@style/KeyboardButton" android:text="c"/>
+        <Button android:id="@+id/btn_small_smile" style="@style/KeyboardButton" android:text="😊"/>
+        <Button android:id="@+id/btn_big_smile" style="@style/KeyboardButton" android:text="😁"/>
+        <Button android:id="@+id/btn_laugh" style="@style/KeyboardButton" android:text="😂"/>
     </LinearLayout>
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal">
-        <Button android:id="@+id/btn_d" style="@style/KeyboardButton" android:text="d"/>
-        <Button android:id="@+id/btn_e" style="@style/KeyboardButton" android:text="e"/>
-        <Button android:id="@+id/btn_f" style="@style/KeyboardButton" android:text="f"/>
+        <Button android:id="@+id/btn_wow" style="@style/KeyboardButton" android:text="😍"/>
+        <Button android:id="@+id/btn_kiss" style="@style/KeyboardButton" android:text="😘"/>
+        <Button android:id="@+id/btn_sad" style="@style/KeyboardButton" android:text="😔"/>
     </LinearLayout>
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal">
-        <Button android:id="@+id/btn_g" style="@style/KeyboardButton" android:text="g"/>
-        <Button android:id="@+id/btn_h" style="@style/KeyboardButton" android:text="h"/>
-        <Button android:id="@+id/btn_i" style="@style/KeyboardButton" android:text="i"/>
+        <Button android:id="@+id/btn_very_sad" style="@style/KeyboardButton" android:text="😓"/>
+        <Button android:id="@+id/btn_tear" style="@style/KeyboardButton" android:text="😢"/>
+        <Button android:id="@+id/btn_cry" style="@style/KeyboardButton" android:text="😭"/>
     </LinearLayout>
 
     <!-- Tasti inferiori -->
@@ -39,8 +38,8 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:layout_marginTop="12dp">
-        <Button android:id="@+id/btn_maiusc" style="@style/KeyboardButton" android:text="⇧"/>
-        <Button android:id="@+id/btn_space" style="@style/KeyboardButton" android:text="⎵"/>
+        <Button android:id="@+id/btn_heart" style="@style/KeyboardButton" android:text="❤️"/>
+        <Button android:id="@+id/btn_thumb" style="@style/KeyboardButton" android:text="👍"/>
         <Button android:id="@+id/btn_back" style="@style/KeyboardButton" android:text="Back"/>
     </LinearLayout>
 </LinearLayout>

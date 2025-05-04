@@ -4,6 +4,7 @@ import GazeTrackerSingleton
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.BroadcastReceiver
@@ -14,6 +15,7 @@ import android.content.pm.PackageManager
 import android.content.res.Resources
 import android.graphics.PixelFormat
 import android.graphics.PorterDuff
+import android.graphics.Rect
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -26,10 +28,13 @@ import android.view.ViewConfiguration
 import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.view.inputmethod.InputMethodManager
 import android.widget.ImageView
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.graphics.toColorInt
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import camp.visual.eyedid.gazetracker.GazeTracker
 import camp.visual.eyedid.gazetracker.callback.TrackingCallback
@@ -40,7 +45,7 @@ import camp.visual.eyedid.gazetracker.metrics.UserStatusInfo
 import kotlin.math.abs
 
 
-class GazeTrackerService : AccessibilityService() {
+    class GazeTrackerService : AccessibilityService() {
 
     //gestisce visualizzazione di view sopra l'interfaccia utente
     private lateinit var windowManager: WindowManager
@@ -319,7 +324,7 @@ class GazeTrackerService : AccessibilityService() {
                     "LEFT"  -> performSwipeLeft()
                     "RIGHT" -> performSwipeRight()
                     "UP"    -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
-                    //"SWIPE_UP"  -> performSwipeUp()
+                    "SWIPE_UP"  -> performSwipeUp()
                     "SWIPE_UP" -> {
                         if (!isHomeScreen) {
                             performSwipeUp()
@@ -328,7 +333,13 @@ class GazeTrackerService : AccessibilityService() {
 
                         }
                     }
-                    "DOWN"  -> performSwipeDown()
+                    "DOWN"  -> {if(!isKeyboardOpen()){
+                        Log.d("INPUT NON RILEVATO", "input non rilevato")
+                        performSwipeDown()
+                    } else{
+                            Log.d("INPUT RILEVATO", "input rilevato")
+                        }
+                    }
                 }
                 // reset per non ripetere in loop
                 zoneStart = 0L
@@ -358,16 +369,6 @@ class GazeTrackerService : AccessibilityService() {
         dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
     }
 
-    /*
-    private fun performSwipeUp() {
-        val path = android.graphics.Path().apply {
-            moveTo(screenW / 2f, screenH * 0.1f)
-            lineTo(screenW / 2f, screenH * 0.9f)
-        }
-        val stroke = GestureDescription.StrokeDescription(path, 0, 500L)
-        dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
-    }
-     */
     private fun performSwipeUp() {
         val path = android.graphics.Path().apply {
             moveTo(screenW / 2f, screenH * 0.3f) // Quasi al bordo inferiore
@@ -385,8 +386,13 @@ class GazeTrackerService : AccessibilityService() {
         val stroke = GestureDescription.StrokeDescription(path, 0, 500L)
         dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
     }
+    private fun isKeyboardOpen(): Boolean {
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            // true = c’è un input view attiva che accetta testo
+            return imm.isAcceptingText
+        }
 
-    @SuppressLint("ServiceCast")
+        @SuppressLint("ServiceCast")
     private fun performClick(x: Int, y: Int) {
         Log.d("DENTRO PERFORM CLICK GTS", "dentro perform click gts")
         // crea un gesture per simulare tap, crea il punto in cui cliccare
