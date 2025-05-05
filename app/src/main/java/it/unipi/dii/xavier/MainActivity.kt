@@ -78,6 +78,8 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("MissingInflatedId", "DiscouragedApi")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.d("OVERLAY", "canDrawOverlays=" + Settings.canDrawOverlays(this))
+
 
         //nascondi action bar
         supportActionBar?.hide()
@@ -122,7 +124,6 @@ class MainActivity : AppCompatActivity() {
                 arrayOf(Manifest.permission.CAMERA),
                 cameraPermissionRequestCode)
         }else{
-
             pointer = findViewById(R.id.pointer)
             // il nuovo thread inizia dopo delay secondi dalla fine del precedente
             //cameraExecutor.scheduleWithFixedDelay({startCamera()}, 0, 1, TimeUnit.SECONDS)
@@ -155,9 +156,11 @@ class MainActivity : AppCompatActivity() {
 
             // L'utente ha concesso il permesso: avvia la fotocamera
             pointer = findViewById(R.id.pointer)
+
             // il nuovo thread inizia dopo delay secondi dalla fine del precedente
             //cameraExecutor.scheduleWithFixedDelay({startCamera()}, 0, 1, TimeUnit.SECONDS)
             cameraExecutor.execute{startCamera()}
+
 
         } else {
             Toast.makeText(this, "Permesso fotocamera negato", Toast.LENGTH_SHORT).show()
@@ -195,8 +198,8 @@ class MainActivity : AppCompatActivity() {
                 Log.i("DIMENSIONI LAYOUT", "dimensioni layout: $w : $h")
 
                 val cameraPosition =
-                    CameraPosition("redmi note 8 pro",
-                        w.toFloat(), h.toFloat(), -34.5f, 0f, false)
+                    CameraPosition("Huawei Y6 2018",
+                        w.toFloat(), h.toFloat(), -22.5f, 0.5f, false)
 
                 //aggiungiamo la posizione della fotocamera al gazeTracker
                 gazeTracker.addCameraPosition(cameraPosition)
@@ -323,6 +326,7 @@ class MainActivity : AppCompatActivity() {
                 pointer.x = gazeInfo.x
                 pointer.y = gazeInfo.y
             }
+            Log.d("POINTER_STATE", "moved to x=$pointer.x, y=$pointer.y")
             if (isCalibrated) {
                 if (blinkInfo.isBlinkRight && !blinkInfo.isBlinkLeft) {
                     Log.d("BLINK DESTRO RILEVATO", "blink destro rilevato: $blinkInfo")

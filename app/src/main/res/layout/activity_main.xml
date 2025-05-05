@@ -2,13 +2,16 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@android:color/white">
+
 
     <!-- 1) PreviewView per CameraX -->
     <androidx.camera.view.PreviewView
           android:id="@+id/previewView"
           android:layout_width="match_parent"
-          android:layout_height="match_parent" />
+          android:layout_height="match_parent"
+          android:background="@android:color/white"/>
 
       <!-- 2) Il pointer sopra la PreviewView -->
     <ImageView
