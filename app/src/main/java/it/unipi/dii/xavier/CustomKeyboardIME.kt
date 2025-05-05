@@ -1,6 +1,7 @@
 package it.unipi.dii.xavier
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.graphics.drawable.Drawable
 import android.inputmethodservice.InputMethodService
 import android.view.View
@@ -9,6 +10,7 @@ import android.view.inputmethod.InputConnection
 import android.widget.Button
 import androidx.core.content.ContextCompat
 import android.util.Log
+import android.view.inputmethod.EditorInfo
 
 class CustomKeyboardIME : InputMethodService() {
 
@@ -17,6 +19,11 @@ class CustomKeyboardIME : InputMethodService() {
     private var isCapsOn = false
     private var isEmojiOff = true
     private var defaultShiftBackground: Drawable? = null
+
+    companion object {
+        const val ACTION_IME_SHOWN   = "com.example.app.ACTION_IME_SHOWN"
+        const val ACTION_IME_HIDDEN  = "com.example.app.ACTION_IME_HIDDEN"
+    }
 
     @SuppressLint("InflateParams")
     override fun onCreateInputView(): View {
@@ -28,6 +35,12 @@ class CustomKeyboardIME : InputMethodService() {
 
         setupMainKeyboard()
         return keyboardView!!
+    }
+
+    override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
+        super.onStartInputView(info, restarting)
+        // Tastiera visibile
+        sendBroadcast(Intent(ACTION_IME_SHOWN))
     }
 
     private fun setupMainKeyboard() {
@@ -139,5 +152,11 @@ class CustomKeyboardIME : InputMethodService() {
             }
         }
         updateButtons(keyboardView)
+    }
+
+    override fun onFinishInputView(finishingInput: Boolean) {
+        super.onFinishInputView(finishingInput)
+        // Tastiera nascosta
+        sendBroadcast(Intent(ACTION_IME_HIDDEN))
     }
 }

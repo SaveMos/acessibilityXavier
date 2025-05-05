@@ -4,7 +4,6 @@ import GazeTrackerSingleton
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.BroadcastReceiver
@@ -15,7 +14,6 @@ import android.content.pm.PackageManager
 import android.content.res.Resources
 import android.graphics.PixelFormat
 import android.graphics.PorterDuff
-import android.graphics.Rect
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -28,13 +26,10 @@ import android.view.ViewConfiguration
 import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
-import android.view.inputmethod.InputMethodManager
 import android.widget.ImageView
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.graphics.toColorInt
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import camp.visual.eyedid.gazetracker.GazeTracker
 import camp.visual.eyedid.gazetracker.callback.TrackingCallback
@@ -76,13 +71,22 @@ import kotlin.math.abs
 
     private lateinit var homePackage: String
     private var isHomeScreen = false
+    private var isKeyboardOpen = false
 
-    //-------------------------------------------------------------------------
+        //-------------------------------------------------------------------------
     companion object {
         const val ACTION_START_GAZE = "it.unipi.dii.xavier.START_GAZE"
         // (eventualmente) const val ACTION_STOP_GAZE = "…STOP_GAZE"
     }
     //-------------------------------------------------------------------------
+    private val keyboardReceiver = object: BroadcastReceiver() {
+        override fun onReceive(ctx: Context, intent: Intent) {
+            when (intent.action) {
+                CustomKeyboardIME.ACTION_IME_SHOWN   -> isKeyboardOpen = true
+                CustomKeyboardIME.ACTION_IME_HIDDEN  -> isKeyboardOpen = false
+            }
+        }
+    }
     @SuppressLint("ForegroundServiceType", "UnspecifiedRegisterReceiverFlag", "InflateParams")
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate() {
@@ -201,6 +205,12 @@ import kotlin.math.abs
             homePackage = res.activityInfo.packageName
         }
 
+        val keyboardFilter = IntentFilter().apply {
+            addAction( CustomKeyboardIME.ACTION_IME_SHOWN)
+            addAction( CustomKeyboardIME.ACTION_IME_HIDDEN)
+        }
+        registerReceiver(keyboardReceiver, keyboardFilter)
+
     }
     //-----------------------------------------------------------------------------
     private val backReceiver = object : BroadcastReceiver() {
@@ -262,7 +272,7 @@ import kotlin.math.abs
             handleZone(gazeInfo.x, gazeInfo.y)
 
             // 3) solo se non siamo in una zona attiva, permetti il dwell-click
-            if (currentZone == null || (currentZone == "SWIPE_UP" && isHomeScreen)) {
+            if (currentZone == null || (currentZone == "SWIPE_UP" && isHomeScreen) || (currentZone == "DOWN" && isKeyboardOpen)) {
                 handleDwellClick(gazeInfo.x, gazeInfo.y)
             }
 
@@ -324,7 +334,6 @@ import kotlin.math.abs
                     "LEFT"  -> performSwipeLeft()
                     "RIGHT" -> performSwipeRight()
                     "UP"    -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
-                    "SWIPE_UP"  -> performSwipeUp()
                     "SWIPE_UP" -> {
                         if (!isHomeScreen) {
                             performSwipeUp()
@@ -333,7 +342,7 @@ import kotlin.math.abs
 
                         }
                     }
-                    "DOWN"  -> {if(!isKeyboardOpen()){
+                    "DOWN"  -> {if(!isKeyboardOpen){
                         Log.d("INPUT NON RILEVATO", "input non rilevato")
                         performSwipeDown()
                     } else{
@@ -386,11 +395,6 @@ import kotlin.math.abs
         val stroke = GestureDescription.StrokeDescription(path, 0, 500L)
         dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
     }
-    private fun isKeyboardOpen(): Boolean {
-        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-            // true = c’è un input view attiva che accetta testo
-            return imm.isAcceptingText
-        }
 
         @SuppressLint("ServiceCast")
     private fun performClick(x: Int, y: Int) {
@@ -489,6 +493,7 @@ import kotlin.math.abs
     override fun onDestroy() {
         unregisterReceiver(startReceiver)
         unregisterReceiver(backReceiver)
+        unregisterReceiver(keyboardReceiver)
         gazeTracker?.stopTracking()
         try { windowManager.removeView(pointerView) } catch (_: Exception) {}
         super.onDestroy()
