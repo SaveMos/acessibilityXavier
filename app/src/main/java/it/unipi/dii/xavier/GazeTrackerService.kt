@@ -42,43 +42,48 @@ import kotlin.math.abs
 
     class GazeTrackerService : AccessibilityService() {
 
-    //gestisce visualizzazione di view sopra l'interfaccia utente
+    //manage the overlay view
     private lateinit var windowManager: WindowManager
-    //rappresenta la freccia
+
+    //represent the pointer
     private lateinit var pointerView: ImageView
-    //parametri per posizionare il puntatore nell'interfaccia utente
+
+    //parameters to be used when adding the pointer view
     private lateinit var layoutParams: WindowManager.LayoutParams
+
     private var gazeTracker: GazeTracker? = null
 
     private lateinit var startReceiver: BroadcastReceiver
 
-    // per dwell-click
+    // for dwell-click
     private var lastX = 0f
     private var lastY = 0f
     private var dwellStart: Long = 0
+    //threshold for dwell-click
     private val dwellTreshold = 1500L // ms
 
-    // per swipe
+    //for swipe
     private var currentZone: String? = null
     private var zoneStart: Long = 0L
-    private val zoneTreshold = 1000L  // ms di dwell per zona
+    private val zoneTreshold = 1000L  // ms to focus for swipe
     private var screenW = 0
     private var screenH = 0
 
-    //menu personalizzato
+    //navigation bar menu
     private lateinit var navMenu: View
     private lateinit var navMenuParams: WindowManager.LayoutParams
 
     private lateinit var homePackage: String
+    //track if we are in home to avoid unwanted swipe up (in order to click upper applications)
     private var isHomeScreen = false
+    //track if the keyboard is open to avoid unwanted swipe down
     private var isKeyboardOpen = false
 
-        //-------------------------------------------------------------------------
     companion object {
         const val ACTION_START_GAZE = "it.unipi.dii.xavier.START_GAZE"
-        // (eventualmente) const val ACTION_STOP_GAZE = "…STOP_GAZE"
     }
-    //-------------------------------------------------------------------------
+
+    //receiver for keyboard visibility tracking
     private val keyboardReceiver = object: BroadcastReceiver() {
         override fun onReceive(ctx: Context, intent: Intent) {
             when (intent.action) {
@@ -87,6 +92,7 @@ import kotlin.math.abs
             }
         }
     }
+
     @SuppressLint("ForegroundServiceType", "UnspecifiedRegisterReceiverFlag", "InflateParams")
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate() {
@@ -96,77 +102,65 @@ import kotlin.math.abs
         screenW = metrics.widthPixels
         screenH = metrics.heightPixels
 
-        //serve per disegnare il puntatore nello schermo, sopra altre app
+        //used to draw the pointer on the screen, above other apps
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
 
-        //dimensioni per il nuovo puntatore
+        //dimensions of the new pointer
         val density = resources.displayMetrics.density
         val sizePx = (32 * density + 0.5f).toInt()
 
-        //crea una nuova imageView del puntatore
+        //creates a new ImageView for the pointer
         pointerView = ImageView(this).apply {
             setImageResource(R.drawable.mouse_pointer)
 
             scaleType = ImageView.ScaleType.FIT_CENTER
-            // Applica un color filter verde neon (#39FF14) in modalità SRC_ATOP
+            // Apply a neon green color filter (#39FF14) in SRC_ATOP mode
             setColorFilter("#39FF14".toColorInt(), PorterDuff.Mode.SRC_ATOP)
             visibility = View.INVISIBLE
         }
 
-        Log.d("DENTRO ON CREATE GTS 1", "dentro on create gts 1")
-        //crea i parametri che definiscono dove e come deve essere mostrato il puntatore
+        //creates the parameters that define where and how the pointer should be displayed
         layoutParams = WindowManager.LayoutParams().apply {
-            //grandezza della view
             width = sizePx
             height = sizePx
-            //supporta trasparenze
             format = PixelFormat.TRANSLUCENT
-            //serve per disegnare sopra altre app
+            //to draw on apps
             type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
-            //il puntatore non ruba il focus alle app sottostanti
+            //the pointer doesn't steel the focus to underneath apps
             flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-            //puntatore parte in alto a sinistra
+            //the pointer
             gravity = Gravity.TOP or Gravity.START
 
         }
 
-        // CONTROLLO PERMESSO PRIMA DI ADD VIEW
         if (!Settings.canDrawOverlays(this)) {
-            Log.e("GazeTrackerService", "Permesso SYSTEM_ALERT_WINDOW mancante. Stoppo il servizio.")
+            Log.e("GazeTrackerService", "SYSTEM_ALERT_WINDOW permission not granted. Service stop.")
             stopSelf()
             return
         }
-
+        // creates the notification channel
         val channelId = "GazeTrackerChannel"
         val channel = NotificationChannel(channelId, "Gaze Tracker Service", NotificationManager.IMPORTANCE_LOW)
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(channel)
 
         val notification = NotificationCompat.Builder(this, channelId)
-            .setContentTitle("Gaze Tracker Attivo")
-            .setContentText("Il servizio sta tracciando il tuo sguardo")
-            .setSmallIcon(R.drawable.ic_launcher_foreground) // usa una tua icona
+            .setContentTitle("Active Gaze Tracker")
+            .setContentText("The service is tracking the gaze")
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
             .build()
 
         startForeground(1, notification)
 
-
-        Log.d("DENTRO ON CREATE GTS 2", "dentro on create gts 2")
-        //mostra a schermo il puntatore con i parametri appena creati
-
-        Log.d("DENTRO ON CREATE GTS 3", "dentro on create gts 3")
-        //-------------------------------------------------------------------------
-        // registra il receiver che aspetta il “via libera”
+        //register the receiver that waits for the calibration end
         startReceiver = object: BroadcastReceiver() {
             override fun onReceive(ctx: Context, intent: Intent) {
-                Log.d("DENTRO ON RECEIVE", "dentro on receive")
                 if (intent.action == ACTION_START_GAZE) {
-                    Log.d("DENTRO IF ON RECEIVE", "dentro if on receive")
-                    // 1) aggiungi l’overlay se non è già stato fatto
+                    //add pointer overlay
                     try { windowManager.addView(pointerView, layoutParams) } catch (_: Exception) {}
                     pointerView.visibility = View.VISIBLE
 
-                    // 2) avvia gaze-tracker
+                    // start gaze-tracker
                     gazeTracker = GazeTrackerSingleton.tracker
                     gazeTracker?.setTrackingCallback(trackingCallback)
                     gazeTracker?.startTracking()
@@ -179,32 +173,25 @@ import kotlin.math.abs
 
         val navigationBarHeight = calcNavigationBarHeight()
 
-        // infla il layout
         navMenu = LayoutInflater.from(this).inflate(R.layout.nav_menu, null)
 
-        // posizionalo appena sopra la navigation bar, centrato orizzontalmente
+        // position the menu in the center of the screen
         navMenuParams = WindowManager.LayoutParams().apply {
-            //width = WindowManager.LayoutParams.WRAP_CONTENT
-            //height = WindowManager.LayoutParams.WRAP_CONTENT
             width = 700
             height = 250
             format = PixelFormat.TRANSLUCENT
             type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
-            //flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    //WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-            //gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             gravity = Gravity.CENTER
-            y = navigationBarHeight + 50  // spostalo 16px sopra la nav bar
+            y = navigationBarHeight + 50
         }
 
-        //-------------------------------------------------------------------------
-
+        // check if home package is available
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
         val res  = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
         if (res != null) {
             homePackage = res.activityInfo.packageName
         }
-
+        // register the keyboard receiver to track keyboard visibility
         val keyboardFilter = IntentFilter().apply {
             addAction( CustomKeyboardIME.ACTION_IME_SHOWN)
             addAction( CustomKeyboardIME.ACTION_IME_HIDDEN)
@@ -212,7 +199,7 @@ import kotlin.math.abs
         registerReceiver(keyboardReceiver, keyboardFilter)
 
     }
-    //-----------------------------------------------------------------------------
+
     private val backReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action == "it.unipi.dii.xavier.BACK") {
@@ -223,15 +210,14 @@ import kotlin.math.abs
 
     private fun calcNavigationBarHeight(): Int {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // Ottieni le metriche della finestra corrente
+            // get the current window metrics
             val wm = getSystemService(WINDOW_SERVICE) as WindowManager
             val windowMetrics = wm.currentWindowMetrics
-            // Prendi l’inset delle navigation bars (bordo inferiore)
+            // take the insets of the navigation bars (bottom bar)
             val insets = windowMetrics.windowInsets
                 .getInsetsIgnoringVisibility(WindowInsets.Type.navigationBars())
             insets.bottom
         } else {
-            // Fallback pre-API 30: usa un valore dp standard (es. 48 dp convertiti in pixel)
             val dp = 48
             (dp * resources.displayMetrics.density + 0.5f).toInt()
         }
@@ -248,8 +234,6 @@ import kotlin.math.abs
         }
     }
 
-    //-----------------------------------------------------------------------------
-
     private val trackingCallback = object : TrackingCallback {
         override fun onMetrics(
             timestamp: Long,
@@ -258,49 +242,47 @@ import kotlin.math.abs
             blinkInfo: BlinkInfo,
             userStatusInfo: UserStatusInfo
         ) {
-            //Log.d("DENTRO ON METRICS GTS", "dentro on metrics gts")
-            // aggiorna posizione overlay
+            // update pointer position
             Handler(Looper.getMainLooper()).post {
                 layoutParams.x = gazeInfo.x.toInt()
                 layoutParams.y = gazeInfo.y.toInt()
                 windowManager.updateViewLayout(pointerView, layoutParams)
             }
 
-            //------------------------------------------------------------------
-            //handleDwellClick(gazeInfo.x, gazeInfo.y)
-            // 2) zone-based actions
             handleZone(gazeInfo.x, gazeInfo.y)
 
-            // 3) solo se non siamo in una zona attiva, permetti il dwell-click
+            // only if we are not in an active zone, let dwell-click
             if (currentZone == null || (currentZone == "SWIPE_UP" && isHomeScreen) || (currentZone == "DOWN" && isKeyboardOpen)) {
                 handleDwellClick(gazeInfo.x, gazeInfo.y)
             }
 
             if(blinkInfo.isBlinkRight && !blinkInfo.isBlinkLeft && !navMenu.isVisible){
-                Log.d("BLINK DESTRO RILEVATO", "blink destro rilevato: $blinkInfo")
                 showNavMenu()
 
             }else if(blinkInfo.isBlinkLeft && !blinkInfo.isBlinkRight && navMenu.isVisible ){
-                Log.d("BLINK SINISTRO RILEVATO", "blink rilevato")
                 hideNavMenu()
             }
 
-            //------------------------------------------------------------------
         }
         override fun onDrop(timestamp: Long) { /*…*/ }
     }
 
     private fun handleDwellClick(x: Float, y: Float) {
-        //Log.d("DENTRO HANDLE CLICK GTS", "dentro handle click gts")
+        // check if the pointer stays in a small area for a little period of time
         if (abs(x - lastX) < 20 && abs(y - lastY) < 20) {
-            // non si è mosso quasi
+            //The condition is true if both the x and y differences are less than 20. This effectively
+            // checks if the pointer has stayed within a small 20x20 pixel square around the lastX, lastY position.
+
+            // If dwellStart is 0L (which is likely used as an initial or reset value), it means the dwell timer hasn't started yet. In this case,
+            // dwellStart is updated with the current system time in milliseconds using System.currentTimeMillis().
             if (dwellStart == 0L) dwellStart = System.currentTimeMillis()
+            // If the calculated duration is greater than dwellTreshold, the condition is true, indicating that the dwell time has been reached.
             else if (System.currentTimeMillis() - dwellStart > dwellTreshold) {
+                // perform click in the point x,y
                 performClick(x.toInt(), y.toInt())
                 dwellStart = 0L  // reset
             }
         } else {
-            // si è mosso
             dwellStart = 0L
         }
         lastX = x
@@ -308,7 +290,7 @@ import kotlin.math.abs
     }
 
     private fun handleZone(x: Float, y: Float) {
-        // determina in quale zona sei
+        // check in which zone the pointer is
         val newZone = when {
             x < screenW * 0.05f   -> "LEFT"
             x > screenW * 0.95f   -> "RIGHT"
@@ -337,24 +319,19 @@ import kotlin.math.abs
                     "SWIPE_UP" -> {
                         if (!isHomeScreen) {
                             performSwipeUp()
-                        } else {
-                            // Qui niente: così lasci passare il click sugli icon della Home
-
                         }
                     }
-                    "DOWN"  -> {if(!isKeyboardOpen){
-                        Log.d("INPUT NON RILEVATO", "input non rilevato")
-                        performSwipeDown()
-                    } else{
-                            Log.d("INPUT RILEVATO", "input rilevato")
+                    "DOWN" -> {
+                        if(!isKeyboardOpen){
+                            performSwipeDown()
                         }
                     }
                 }
-                // reset per non ripetere in loop
+                // reset
                 zoneStart = 0L
             }
         } else {
-            // entri in una nuova zona
+            // in a new zone
             currentZone = newZone
             zoneStart = 0L
         }
@@ -366,6 +343,7 @@ import kotlin.math.abs
             lineTo(screenW * 0.1f, screenH / 2f)
         }
         val stroke = GestureDescription.StrokeDescription(path, 0, 500L)
+        // perform swipe right gesture
         dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
     }
 
@@ -375,15 +353,17 @@ import kotlin.math.abs
             lineTo(screenW * 0.9f, screenH / 2f)
         }
         val stroke = GestureDescription.StrokeDescription(path, 0, 500L)
+        // perform swipe left gesture
         dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
     }
 
     private fun performSwipeUp() {
         val path = android.graphics.Path().apply {
-            moveTo(screenW / 2f, screenH * 0.3f) // Quasi al bordo inferiore
-            lineTo(screenW / 2f, screenH * 0.98f)  // Non troppo in alto
+            moveTo(screenW / 2f, screenH * 0.3f)
+            lineTo(screenW / 2f, screenH * 0.98f)
         }
         val stroke = GestureDescription.StrokeDescription(path, 0, 300L)
+        // perform swipe up gesture
         dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
     }
 
@@ -393,47 +373,34 @@ import kotlin.math.abs
             lineTo(screenW / 2f, screenH * 0.1f)
         }
         val stroke = GestureDescription.StrokeDescription(path, 0, 500L)
+        // perform swipe down gesture
         dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
     }
 
         @SuppressLint("ServiceCast")
     private fun performClick(x: Int, y: Int) {
-        Log.d("DENTRO PERFORM CLICK GTS", "dentro perform click gts")
-        // crea un gesture per simulare tap, crea il punto in cui cliccare
+        // creates a gesture to simulate a tap, creates the point where to click
         val path = android.graphics.Path().apply { moveTo(x.toFloat(), y.toFloat()) }
 
-        // 2) Prendi la durata minima di un tap dal sistema (≈100 ms)
+        // takes the minimum tap duration from the system (≈100 ms)
         val tapDuration = ViewConfiguration.getTapTimeout().toLong()
 
-        // 3) Crea lo StrokeDescription con quell’intervallo
+        // Creates a StrokeDescription with the tap duration
         val stroke = GestureDescription.StrokeDescription(path, 0, tapDuration)
 
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
 
         Handler(Looper.getMainLooper()).post {
 
-            // Solo per debug: controlla se il tuo servizio è fra quelli abilitati
+            // check if the service is enabled
             val enabledServices = Settings.Secure.getString(
                 contentResolver,
                 Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
             )
-            Log.d("SERVIZI ABILITATI", "Enabled services: $enabledServices")
-            // Se non vedi il tuo pacchetto qui dentro, non lo hai abilitato
-
             val myPackage = applicationContext.packageName
-            Log.d("SERVIZIO IN USO", "Pacchetto del servizio: $myPackage")
-
-            val sent = dispatchGesture(gesture, object : GestureResultCallback() {
-                override fun onCompleted(gestureDescription: GestureDescription) {
-                    Log.d("GazeTrackerService", "Tap simulato con successo")
-                }
-
-                override fun onCancelled(gestureDescription: GestureDescription) {
-                    Log.w("GazeTrackerService", "Tap annullato")
-                }
+            // This is the core function call that dispatches the simulated gesture.
+            dispatchGesture(gesture, object : GestureResultCallback() {
             }, null)
-
-            Log.d("NON APRE L'APP", "dispatchGesture returns: $sent")
         }
     }
 
@@ -442,13 +409,11 @@ import kotlin.math.abs
         windowManager.addView(navMenu, navMenuParams)
         navMenu.visibility = View.GONE
 
-        // trova gli ImageView e metti i click listener
+        // set click listener on ImageView Icons
         navMenu.findViewById<ImageView>(R.id.btn_back).setOnClickListener {
-
             Handler(Looper.getMainLooper()).postDelayed({
                performGlobalAction(GLOBAL_ACTION_BACK)
             }, 100)
-
             hideNavMenu()
         }
         navMenu.findViewById<ImageView>(R.id.btn_home).setOnClickListener {
@@ -459,8 +424,6 @@ import kotlin.math.abs
             performGlobalAction(GLOBAL_ACTION_RECENTS)
             hideNavMenu()
         }
-
-        Log.d("SCHERMO ATTIVO", "AccessibilityService connesso — flags: ${serviceInfo.flags}")
     }
 
     @SuppressLint("SwitchIntDef")
@@ -469,23 +432,18 @@ import kotlin.math.abs
 
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
-                Log.d("FINESTRA CAMBIATA", "Finestra cambiata: ${event.className}")
             }
             AccessibilityEvent.TYPE_VIEW_CLICKED -> {
-                Log.d("VIEW CLICCATA", "View cliccata: ${event.packageName}")
             }
 
         }
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val pkg = event.packageName?.toString()
             isHomeScreen = pkg == homePackage
-            Log.d("GTS", "Package in primo piano: $pkg — isHomeScreen=$isHomeScreen")
         }
     }
 
     override fun onInterrupt() {
-        Log.w("ACCESSIBILITà INTERROTTA", "Servizio di Accessibilità interrotto dal sistema")
-        // qui potresti fermare il gazeTracker, rimuovere overlay, ecc.
         gazeTracker?.stopTracking()
         try { windowManager.removeView(pointerView) } catch (_: Exception) {}
     }
