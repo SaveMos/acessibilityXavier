@@ -211,7 +211,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun initGaze() {
         val licenseKey = "dev_ptq5nrn1bep16ykwwlwlag5n6u3hz6q7vj0sbcxc"
-        //a GazeTracker option instance is created thorugh build method
+        //a GazeTracker option instance is created thorough build method
         val options = GazeTrackerOptions.Builder().setUseGazeFilter(true).setUseBlink(true).build()
 
         GazeTracker.initGazeTracker(applicationContext, licenseKey, initializationCallback, options)
