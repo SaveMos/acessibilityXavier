@@ -94,6 +94,7 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_main)
 
+        //retrieve the root layout and its dimensions
         rootLayout = findViewById(R.id.root)
         rootLayout.post {
             w = rootLayout.width
@@ -180,7 +181,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        //calibration ended, send message to service to start gaze
+        //calibration ended, send message to the service to start gaze
         val intent = Intent(GazeTrackerService.ACTION_START_GAZE)
         sendBroadcast(intent)
     }
