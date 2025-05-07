@@ -51,8 +51,10 @@ import kotlin.math.abs
     //parameters to be used when adding the pointer view
     private lateinit var layoutParams: WindowManager.LayoutParams
 
+    //Gaze tracker responsible for capturing gaze and blink data
     private var gazeTracker: GazeTracker? = null
 
+    //BroadcastReceiver to start the gaze tracking when calibration is completed
     private lateinit var startReceiver: BroadcastReceiver
 
     // for dwell-click
@@ -79,6 +81,7 @@ import kotlin.math.abs
     //track if the keyboard is open to avoid unwanted swipe down
     private var isKeyboardOpen = false
 
+    //action string used to trigger gaze tracking after calibration
     companion object {
         const val ACTION_START_GAZE = "it.unipi.dii.xavier.START_GAZE"
     }
@@ -93,11 +96,14 @@ import kotlin.math.abs
         }
     }
 
+    /**
+    * Initializes the service, overlay components, notification, and broadcast receivers.
+    */
     @SuppressLint("ForegroundServiceType", "UnspecifiedRegisterReceiverFlag", "InflateParams")
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate() {
         super.onCreate()
-
+        // retrieves the dimensions of the screen of the device
         val metrics = Resources.getSystem().displayMetrics
         screenW = metrics.widthPixels
         screenH = metrics.heightPixels
@@ -167,12 +173,13 @@ import kotlin.math.abs
                 }
             }
         }
-        registerReceiver(startReceiver, IntentFilter(ACTION_START_GAZE))
+        registerReceiver(startReceiver, IntentFilter(ACTION_START_GAZE), RECEIVER_EXPORTED)
         val filter = IntentFilter("it.unipi.dii.xavier.BACK")
-        registerReceiver(backReceiver, filter)
+        registerReceiver(backReceiver, filter, RECEIVER_EXPORTED)
 
         val navigationBarHeight = calcNavigationBarHeight()
 
+        //inflate the navigation menu
         navMenu = LayoutInflater.from(this).inflate(R.layout.nav_menu, null)
 
         // position the menu in the center of the screen
@@ -196,10 +203,12 @@ import kotlin.math.abs
             addAction( CustomKeyboardIME.ACTION_IME_SHOWN)
             addAction( CustomKeyboardIME.ACTION_IME_HIDDEN)
         }
-        registerReceiver(keyboardReceiver, keyboardFilter)
+        registerReceiver(keyboardReceiver, keyboardFilter, RECEIVER_EXPORTED)
 
     }
-
+    /**
+    * BroadcastReceiver to simulate the back button press when receiving a specific intent.
+    */
     private val backReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action == "it.unipi.dii.xavier.BACK") {
@@ -208,6 +217,9 @@ import kotlin.math.abs
         }
     }
 
+    /**
+    * Calculates the height of the navigation bar.
+    */
     private fun calcNavigationBarHeight(): Int {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             // get the current window metrics
@@ -222,18 +234,26 @@ import kotlin.math.abs
             (dp * resources.displayMetrics.density + 0.5f).toInt()
         }
     }
-
+    /**
+    * Shows the navigation menu overlay.
+    */
     private fun showNavMenu() {
         Handler(Looper.getMainLooper()).post {
             navMenu.visibility = View.VISIBLE
         }
     }
+    /**
+    * Hides the navigation menu overlay.
+    */
     private fun hideNavMenu() {
         Handler(Looper.getMainLooper()).post {
             navMenu.visibility = View.GONE
         }
     }
 
+    /**
+    * Callback for receiving gaze and blink tracking data.
+    */
     private val trackingCallback = object : TrackingCallback {
         override fun onMetrics(
             timestamp: Long,
@@ -255,10 +275,10 @@ import kotlin.math.abs
             if (currentZone == null || (currentZone == "SWIPE_UP" && isHomeScreen) || (currentZone == "DOWN" && isKeyboardOpen)) {
                 handleDwellClick(gazeInfo.x, gazeInfo.y)
             }
-
+            //open the menu with right blink
             if(blinkInfo.isBlinkRight && !blinkInfo.isBlinkLeft && !navMenu.isVisible){
                 showNavMenu()
-
+            //close the menu with left blink
             }else if(blinkInfo.isBlinkLeft && !blinkInfo.isBlinkRight && navMenu.isVisible ){
                 hideNavMenu()
             }
@@ -267,6 +287,9 @@ import kotlin.math.abs
         override fun onDrop(timestamp: Long) { /*…*/ }
     }
 
+   /**
+   * Performs a dwell-click if the pointer remains still for a set duration.
+   */
     private fun handleDwellClick(x: Float, y: Float) {
         // check if the pointer stays in a small area for a little period of time
         if (abs(x - lastX) < 20 && abs(y - lastY) < 20) {
@@ -289,6 +312,9 @@ import kotlin.math.abs
         lastY = y
     }
 
+    /**
+    * Detects which zone (edges) the pointer is in and triggers swipe gestures if focus is maintained.
+    */
     private fun handleZone(x: Float, y: Float) {
         // check in which zone the pointer is
         val newZone = when {
@@ -301,17 +327,17 @@ import kotlin.math.abs
         }
 
         if (newZone == null) {
-            // sei nella zona centrale: reset
+            // if we are in the central zone: reset
             currentZone = null
             zoneStart = 0L
             return
         }
 
         if (newZone == currentZone) {
-            // stai ancora guardando nella stessa zona
+            // you are looking in the same zone
             if (zoneStart == 0L) zoneStart = System.currentTimeMillis()
             else if (System.currentTimeMillis() - zoneStart > zoneTreshold) {
-                // superata la soglia, esegui l’azione
+                // passed the threshold, execute the action
                 when (newZone) {
                     "LEFT"  -> performSwipeLeft()
                     "RIGHT" -> performSwipeRight()
@@ -393,11 +419,11 @@ import kotlin.math.abs
         Handler(Looper.getMainLooper()).post {
 
             // check if the service is enabled
-            val enabledServices = Settings.Secure.getString(
+            Settings.Secure.getString(
                 contentResolver,
                 Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
             )
-            val myPackage = applicationContext.packageName
+           applicationContext.packageName
             // This is the core function call that dispatches the simulated gesture.
             dispatchGesture(gesture, object : GestureResultCallback() {
             }, null)

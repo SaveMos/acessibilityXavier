@@ -85,6 +85,9 @@ class MainActivity : AppCompatActivity() {
     // Handler to schedule tasks on the main thread
     private val handler = Handler(Looper.getMainLooper())
 
+    /**
+     * Initializes UI elements, permissions, and loads initial configuration.
+     */
     @SuppressLint("MissingInflatedId", "DiscouragedApi")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -178,7 +181,10 @@ class MainActivity : AppCompatActivity() {
             cameraExecutor.execute{startCamera()}
         }
     }
-
+    /**
+     * Called when the activity goes into the background.
+     * Sends a broadcast to start gaze tracking in the background.
+     */
     override fun onPause() {
         super.onPause()
         //calibration ended, send message to the service to start gaze
@@ -186,6 +192,9 @@ class MainActivity : AppCompatActivity() {
         sendBroadcast(intent)
     }
 
+    /**
+     * Handles the result of permission requests.
+     */
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -205,10 +214,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Starts the camera and gaze tracker.
+     */
     private fun startCamera() {
         initGaze()
     }
 
+    /**
+     * Initializes the gaze tracking engine using a license key and options.
+     */
     private fun initGaze() {
         val licenseKey = "dev_ptq5nrn1bep16ykwwlwlag5n6u3hz6q7vj0sbcxc"
         //a GazeTracker option instance is created thorough build method
@@ -217,6 +232,9 @@ class MainActivity : AppCompatActivity() {
         GazeTracker.initGazeTracker(applicationContext, licenseKey, initializationCallback, options)
     }
 
+    /**
+     * Callback triggered after gaze tracker initialization.
+     */
     private val initializationCallback =
         InitializationCallback { gazeTracker, error ->
 
@@ -246,6 +264,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+    /**
+     * Callback for tracking status changes (started/stopped).
+     */
     private val statusCallback = object : StatusCallback {
         override fun onStarted() {
             //set calibration function
@@ -259,6 +280,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Callback used during the gaze calibration process.
+     */
     private val calibrationCallback = object : CalibrationCallback {
 
         override fun onCalibrationProgress(progress: Float) {
@@ -294,6 +318,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Draws a red dot at the specified screen coordinates for calibration.
+     *
+     * @param x X-coordinate
+     * @param y Y-coordinate
+     */
     private fun drawPointAt(x: Float, y: Float) {
 
         // remove the previous point if it exists
@@ -311,6 +341,11 @@ class MainActivity : AppCompatActivity() {
         currentCalibrationPoint = pointView
     }
 
+    /**
+     * Called when gaze tracker initialization succeeds.
+     *
+     * @param gazeTracker The initialized GazeTracker instance
+     */
     private fun initSuccess(gazeTracker: GazeTracker) {
 
         //assign gazeTracker
@@ -323,6 +358,11 @@ class MainActivity : AppCompatActivity() {
         this.gazeTracker!!.setTrackingCallback(trackingCallback)
     }
 
+    /**
+     * Called when gaze tracker initialization fails.
+     *
+     * @param error The type of initialization error
+     */
     private fun initFail(error: InitializationErrorType) {
         val err = when (error) {
             InitializationErrorType.ERROR_INIT -> "Initialization failed"
@@ -332,7 +372,9 @@ class MainActivity : AppCompatActivity() {
         Log.w("Eyedid SDK", "Error description: $err")
     }
 
-
+    /**
+     * Callback for gaze tracking metrics and blink events.
+     */
     private val trackingCallback: TrackingCallback = object : TrackingCallback {
         override fun onMetrics(
             timestamp: Long,
@@ -371,6 +413,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Cleans up resources such as thread pool when activity is destroyed.
+     */
     override fun onDestroy() {
         super.onDestroy()
         cameraExecutor.shutdown()
