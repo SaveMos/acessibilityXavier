@@ -343,11 +343,13 @@ import kotlin.math.abs
                     "RIGHT" -> performSwipeRight()
                     "UP"    -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
                     "SWIPE_UP" -> {
+                        //swipe up if we are inside an application
                         if (!isHomeScreen) {
                             performSwipeUp()
                         }
                     }
                     "DOWN" -> {
+                        //swipe down if we the keyboard is not opened
                         if(!isKeyboardOpen){
                             performSwipeDown()
                         }
@@ -363,6 +365,9 @@ import kotlin.math.abs
         }
     }
 
+    /**
+    * Simulates a right swipe gesture using accessibility APIs.
+    */
     private fun performSwipeRight() {
         val path = android.graphics.Path().apply {
             moveTo(screenW * 0.9f, screenH / 2f)
@@ -373,6 +378,9 @@ import kotlin.math.abs
         dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
     }
 
+    /**
+    * Simulates a left swipe gesture using accessibility APIs.
+    */
     private fun performSwipeLeft() {
         val path = android.graphics.Path().apply {
             moveTo(screenW * 0.1f, screenH / 2f)
@@ -383,6 +391,9 @@ import kotlin.math.abs
         dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
     }
 
+    /**
+    * Simulates an upward swipe gesture using accessibility APIs.
+    */
     private fun performSwipeUp() {
         val path = android.graphics.Path().apply {
             moveTo(screenW / 2f, screenH * 0.3f)
@@ -393,6 +404,9 @@ import kotlin.math.abs
         dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
     }
 
+    /**
+    * Simulates an upward swipe gesture using accessibility APIs.
+    */
     private fun performSwipeDown() {
         val path = android.graphics.Path().apply {
             moveTo(screenW / 2f, screenH * 0.9f)
@@ -403,7 +417,13 @@ import kotlin.math.abs
         dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
     }
 
-        @SuppressLint("ServiceCast")
+    /**
+    * Simulates a click at the given screen coordinates.
+    *
+    * @param x The X coordinate of the click.
+    * @param y The Y coordinate of the click.
+    */
+    @SuppressLint("ServiceCast")
     private fun performClick(x: Int, y: Int) {
         // creates a gesture to simulate a tap, creates the point where to click
         val path = android.graphics.Path().apply { moveTo(x.toFloat(), y.toFloat()) }
@@ -430,12 +450,15 @@ import kotlin.math.abs
         }
     }
 
+    /**
+    * Called when the service is successfully connected. Sets up navigation menu behavior.
+    */
     override fun onServiceConnected() {
         super.onServiceConnected()
         windowManager.addView(navMenu, navMenuParams)
         navMenu.visibility = View.GONE
 
-        // set click listener on ImageView Icons
+        // set click listener on ImageView Icons of the navigation menu
         navMenu.findViewById<ImageView>(R.id.btn_back).setOnClickListener {
             Handler(Looper.getMainLooper()).postDelayed({
                performGlobalAction(GLOBAL_ACTION_BACK)
@@ -452,6 +475,9 @@ import kotlin.math.abs
         }
     }
 
+    /**
+    * Handles accessibility events. Tracks current app to detect if home screen is active.
+    */
     @SuppressLint("SwitchIntDef")
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
@@ -469,11 +495,17 @@ import kotlin.math.abs
         }
     }
 
+    /**
+    * Stops gaze tracking and removes overlays if the service is interrupted.
+    */
     override fun onInterrupt() {
         gazeTracker?.stopTracking()
         try { windowManager.removeView(pointerView) } catch (_: Exception) {}
     }
 
+    /**
+    * Cleans up resources and unregisters receivers when the service is destroyed.
+    */
     override fun onDestroy() {
         unregisterReceiver(startReceiver)
         unregisterReceiver(backReceiver)
