@@ -244,7 +244,7 @@ class MainActivity : AppCompatActivity() {
                 //set status callback
                 gazeTracker.setStatusCallback(statusCallback)
 
-                //-22.5f 0.5f for Huawei Y6 2018 used for testing
+                //-22.5f -0.5f for Huawei Y6 2018 used for testing
                 Log.i("X", "x: $paramAngle ")
                 Log.i("Y", "y: $paramScale")
 
@@ -255,6 +255,8 @@ class MainActivity : AppCompatActivity() {
                         w.toFloat(), h.toFloat(), paramAngle, paramScale, false)
 
                 gazeTracker.addCameraPosition(cameraPosition)
+                //reduce front camera fps for a more stable gaze tracking
+                //gazeTracker.setTrackingFPS(20)
 
                 //open the camera and start tracking the gaze
                 gazeTracker.startTracking()

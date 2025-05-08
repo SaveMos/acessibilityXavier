@@ -4,6 +4,7 @@ import GazeTrackerSingleton
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.annotation.SuppressLint
+import kotlin.math.abs
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.BroadcastReceiver
@@ -37,10 +38,9 @@ import camp.visual.eyedid.gazetracker.metrics.BlinkInfo
 import camp.visual.eyedid.gazetracker.metrics.FaceInfo
 import camp.visual.eyedid.gazetracker.metrics.GazeInfo
 import camp.visual.eyedid.gazetracker.metrics.UserStatusInfo
-import kotlin.math.abs
 
 
-    class GazeTrackerService : AccessibilityService() {
+class GazeTrackerService : AccessibilityService() {
 
     //manage the overlay view
     private lateinit var windowManager: WindowManager
@@ -78,6 +78,7 @@ import kotlin.math.abs
     private lateinit var homePackage: String
     //track if we are in home to avoid unwanted swipe up (in order to click upper applications)
     private var isHomeScreen = false
+
     //track if the keyboard is open to avoid unwanted swipe down
     private var isKeyboardOpen = false
 
@@ -173,9 +174,17 @@ import kotlin.math.abs
                 }
             }
         }
-        registerReceiver(startReceiver, IntentFilter(ACTION_START_GAZE), RECEIVER_EXPORTED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(startReceiver, IntentFilter(ACTION_START_GAZE), RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(startReceiver, IntentFilter(ACTION_START_GAZE))
+        }
         val filter = IntentFilter("it.unipi.dii.xavier.BACK")
-        registerReceiver(backReceiver, filter, RECEIVER_EXPORTED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(backReceiver, filter, RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(backReceiver, filter)
+        }
 
         val navigationBarHeight = calcNavigationBarHeight()
 
@@ -203,7 +212,11 @@ import kotlin.math.abs
             addAction( CustomKeyboardIME.ACTION_IME_SHOWN)
             addAction( CustomKeyboardIME.ACTION_IME_HIDDEN)
         }
-        registerReceiver(keyboardReceiver, keyboardFilter, RECEIVER_EXPORTED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(keyboardReceiver, keyboardFilter, RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(keyboardReceiver, keyboardFilter)
+        }
 
     }
     /**
@@ -275,11 +288,12 @@ import kotlin.math.abs
             if (currentZone == null || (currentZone == "SWIPE_UP" && isHomeScreen) || (currentZone == "DOWN" && isKeyboardOpen)) {
                 handleDwellClick(gazeInfo.x, gazeInfo.y)
             }
+
             //open the menu with right blink
             if(blinkInfo.isBlinkRight && !blinkInfo.isBlinkLeft && !navMenu.isVisible){
                 showNavMenu()
             //close the menu with left blink
-            }else if(blinkInfo.isBlinkLeft && !blinkInfo.isBlinkRight && navMenu.isVisible ){
+            }else if(blinkInfo.isBlinkLeft && !blinkInfo.isBlinkRight){
                 hideNavMenu()
             }
 
@@ -290,6 +304,7 @@ import kotlin.math.abs
    /**
    * Performs a dwell-click if the pointer remains still for a set duration.
    */
+
     private fun handleDwellClick(x: Float, y: Float) {
         // check if the pointer stays in a small area for a little period of time
         if (abs(x - lastX) < 20 && abs(y - lastY) < 20) {
@@ -311,6 +326,8 @@ import kotlin.math.abs
         lastX = x
         lastY = y
     }
+
+
 
     /**
     * Detects which zone (edges) the pointer is in and triggers swipe gestures if focus is maintained.
@@ -425,6 +442,8 @@ import kotlin.math.abs
     */
     @SuppressLint("ServiceCast")
     private fun performClick(x: Int, y: Int) {
+        if (x < 0 || y < 0 )
+            return
         // creates a gesture to simulate a tap, creates the point where to click
         val path = android.graphics.Path().apply { moveTo(x.toFloat(), y.toFloat()) }
 

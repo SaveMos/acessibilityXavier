@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.BIND_INPUT_METHOD" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
 
 
     <application
@@ -38,8 +39,10 @@
             android:name=".GazeTrackerService"
             android:exported="true"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:foregroundServiceType="camera"
             android:label="@string/accessibility_service_name"
-            android:description="@string/accessibility_service_description">
+            android:description="@string/accessibility_service_description"
+            tools:ignore="ForegroundServicePermission">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
