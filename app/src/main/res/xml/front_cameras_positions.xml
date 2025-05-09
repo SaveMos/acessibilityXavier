@@ -14,5 +14,11 @@
         <x>-22.5</x>
         <y>-0.5</y>
     </HuaweiY62018>
-
+    <RedmiNote8Pro>
+        <Name>Redmi Note</Name>
+        <Model>8 Pro</Model>
+        <Brand>Xiaomi</Brand>
+        <x>-34.5</x>
+        <y>0</y>
+    </RedmiNote8Pro>
 </resources>
