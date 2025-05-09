@@ -5,12 +5,6 @@
     android:layout_height="match_parent"
     android:background="@android:color/white">
 
-    <androidx.camera.view.PreviewView
-          android:id="@+id/previewView"
-          android:layout_width="match_parent"
-          android:layout_height="match_parent"
-          android:background="@android:color/white"/>
-
     <ImageView
         android:id="@+id/pointer"
         android:layout_width="32dp"
@@ -55,6 +49,12 @@
             android:textColor="@android:color/white"
             android:layout_marginTop="8dp" />
 
+        <androidx.camera.view.PreviewView
+            android:id="@+id/previewView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@android:color/white" />
+
         <EditText
             android:id="@+id/etY"
             android:autofillHints="false"
@@ -66,14 +66,37 @@
             android:inputType="numberDecimal|numberSigned"
             android:layout_marginBottom="16dp" />
 
-        <Button
-            android:id="@+id/btnSet"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnSet"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:backgroundTint="@android:color/holo_blue_light"
+                android:text="@string/btn_set"
+                android:textColor="@android:color/white" />
+
+            <SearchView
+                android:id="@+id/preset"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#FAFAFA" />
+
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/suggest"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/btn_set"
-            android:layout_gravity="center_horizontal"
-            android:backgroundTint="@android:color/holo_blue_light"
-            android:textColor="@android:color/white" />
+            android:maxHeight="150dp"
+            android:visibility="gone"
+            android:overScrollMode="always"
+            android:layout_margin="8dp"/>
+
     </LinearLayout>
 
 

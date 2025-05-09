@@ -3,6 +3,7 @@ package it.unipi.dii.xavier
 import GazeTrackerSingleton
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -17,6 +18,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.SearchView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -42,6 +44,12 @@ import camp.visual.eyedid.gazetracker.metrics.UserStatusInfo
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import androidx.core.content.edit
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import org.xmlpull.v1.XmlPullParser
+import org.xmlpull.v1.XmlPullParserFactory
+import java.io.InputStream
+
 
 
 class MainActivity : AppCompatActivity() {
@@ -52,6 +60,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var etX: EditText
     private lateinit var etY: EditText
     private lateinit var btnSet: Button
+    private lateinit var preset: SearchView
+    private lateinit var suggestionsRecyclerView: RecyclerView
+    private val devices = mutableListOf<Device>()
+    private lateinit var adapter: DeviceAdapter
+
+
     //default values
     private var paramAngle = 0f
     private var paramScale = 0f
@@ -92,6 +106,11 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        //initDeviceList
+        initDeviceList(this,R.xml.front_cameras_positions)
+        Log.i("Devices", "Lista inizializzata: $devices")
+
+
         //hide action bar
         supportActionBar?.hide()
 
@@ -130,6 +149,8 @@ class MainActivity : AppCompatActivity() {
         etX          = findViewById(R.id.etX)
         etY          = findViewById(R.id.etY)
         btnSet       = findViewById(R.id.btnSet)
+        preset       = findViewById(R.id.preset)
+        suggestionsRecyclerView = findViewById(R.id.suggest)
 
         //read values from shared preferences
         val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
@@ -175,12 +196,95 @@ class MainActivity : AppCompatActivity() {
                 cameraExecutor.execute{startCamera()}
             }
         }
+
+        //set listener to SearchView
+        suggestionsRecyclerView.layoutManager = LinearLayoutManager(this)
+        adapter = DeviceAdapter(listOf()) { selectedDevice ->
+            etX.setText(selectedDevice.x.toString())
+            etY.setText(selectedDevice.y.toString())
+            suggestionsRecyclerView.visibility = View.GONE
+        }
+        suggestionsRecyclerView.adapter = adapter
+        preset.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean {
+                return false
+            }
+
+            override fun onQueryTextChange(newText: String?): Boolean {
+                if (newText.isNullOrBlank()) {
+                    suggestionsRecyclerView.visibility = View.GONE
+                    return true
+                }
+
+                val filtered = devices.filter {
+                    it.name.contains(newText, ignoreCase = true) ||
+                            it.brand.contains(newText, ignoreCase = true) ||
+                            it.model.contains(newText, ignoreCase = true)
+                }
+
+                val limited = filtered.take(3)
+                adapter.updateList(limited)
+                suggestionsRecyclerView.visibility = if (limited.isEmpty()) View.GONE else View.VISIBLE
+                return true
+            }
+        })
+
+
+
         //check if it is the first run ever, if not, start the gazeTracker
         if(!firstRun){
             pointer = findViewById(R.id.pointer)
             cameraExecutor.execute{startCamera()}
         }
     }
+
+    private fun initDeviceList(context: Context, resor: Int) {
+        val parser = context.resources.getXml(resor)
+        var eventType = parser.eventType
+        var currentDevice: Device? = null
+        var text = ""
+        try {
+            while (eventType != XmlPullParser.END_DOCUMENT) {
+                when (eventType) {
+                    XmlPullParser.START_TAG -> {
+                        val tagName = parser.name
+                        Log.i("Devices", "INIZIO tag: $tagName")
+
+                        if (tagName != "resources" && tagName.matches(Regex("^[a-zA-Z0-9]+\$")) && currentDevice == null) {
+                            currentDevice = Device(tagName, "", "", 0.0, 0.0)
+                        }
+                    }
+
+                    XmlPullParser.TEXT -> {
+                        text = parser.text
+                    }
+
+                    XmlPullParser.END_TAG -> {
+                        val tagName = parser.name
+
+                        when (tagName) {
+                            "Name" -> currentDevice?.name = text
+                            "Model" -> currentDevice?.model = text
+                            "Brand" -> currentDevice?.brand = text
+                            "x" -> currentDevice?.x = text.toDouble()
+                            "y" -> currentDevice?.y = text.toDouble()
+                            else -> {
+                                if (tagName != "resources" && tagName.matches(Regex("^[a-zA-Z0-9]+\$"))) {
+                                    currentDevice?.let { devices.add(it) }
+                                    currentDevice = null
+                                }
+                            }
+                        }
+                    }
+                }
+                eventType = parser.next()
+            }
+        }catch (e:Exception){
+            Log.e("Devices", "Errore durante il parsing XML: ${e.message}")
+        }
+    }
+
+
     /**
      * Called when the activity goes into the background.
      * Sends a broadcast to start gaze tracking in the background.
