@@ -7,5 +7,12 @@
         <x>-32.46</x>
         <y>4</y>
     </Redmi1223053rn02y>
+    <HuaweiY62018>
+        <Name>Huawei Y6 2018</Name>
+        <Model>ATU-L11</Model>
+        <Brand>Huawei</Brand>
+        <x>-22.5</x>
+        <y>-0.5</y>
+    </HuaweiY62018>
 
 </resources>

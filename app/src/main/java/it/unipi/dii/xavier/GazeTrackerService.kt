@@ -38,6 +38,7 @@ import camp.visual.eyedid.gazetracker.metrics.BlinkInfo
 import camp.visual.eyedid.gazetracker.metrics.FaceInfo
 import camp.visual.eyedid.gazetracker.metrics.GazeInfo
 import camp.visual.eyedid.gazetracker.metrics.UserStatusInfo
+import java.lang.Thread.sleep
 
 
 class GazeTrackerService : AccessibilityService() {
@@ -319,6 +320,9 @@ class GazeTrackerService : AccessibilityService() {
                 // perform click in the point x,y
                 performClick(x.toInt(), y.toInt())
                 dwellStart = 0L  // reset
+                //gazeTracker?.stopTracking()
+                //sleep(2000)
+                //gazeTracker?.startTracking()
             }
         } else {
             dwellStart = 0L
