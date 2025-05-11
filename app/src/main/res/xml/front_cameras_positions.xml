@@ -6,6 +6,7 @@
         <Brand>Xiaomi</Brand>
         <x>-32.46</x>
         <y>4</y>
+        <fps>12.1</fps>
     </Redmi1223053rn02y>
     <HuaweiY62018>
         <Name>Huawei Y6 2018</Name>
@@ -13,6 +14,7 @@
         <Brand>Huawei</Brand>
         <x>-22.5</x>
         <y>-0.5</y>
+        <fps>12.1</fps>
     </HuaweiY62018>
     <RedmiNote8Pro>
         <Name>Redmi Note</Name>
@@ -20,5 +22,6 @@
         <Brand>Xiaomi</Brand>
         <x>-34.5</x>
         <y>0</y>
+        <fps>12.1</fps>
     </RedmiNote8Pro>
 </resources>

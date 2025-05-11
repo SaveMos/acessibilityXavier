@@ -24,6 +24,15 @@
         android:layout_gravity="center"
         android:elevation="10dp">
 
+        <Switch
+            android:id="@+id/clickMode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#4B4949"
+            android:buttonTint="#ADACAC"
+            android:text="ClickMode: Dwell(off) | Blink(On)"
+            android:textColor="#FFFFFF" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

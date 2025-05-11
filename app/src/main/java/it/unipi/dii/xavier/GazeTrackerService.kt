@@ -32,12 +32,21 @@ import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.graphics.toColorInt
 import androidx.core.view.isVisible
+import androidx.lifecycle.lifecycleScope
 import camp.visual.eyedid.gazetracker.GazeTracker
 import camp.visual.eyedid.gazetracker.callback.TrackingCallback
 import camp.visual.eyedid.gazetracker.metrics.BlinkInfo
 import camp.visual.eyedid.gazetracker.metrics.FaceInfo
 import camp.visual.eyedid.gazetracker.metrics.GazeInfo
 import camp.visual.eyedid.gazetracker.metrics.UserStatusInfo
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.lang.Thread.sleep
 
 
@@ -58,12 +67,18 @@ class GazeTrackerService : AccessibilityService() {
     //BroadcastReceiver to start the gaze tracking when calibration is completed
     private lateinit var startReceiver: BroadcastReceiver
 
-    // for dwell-click
+    private var clickModeDS=false //indicate which mode use for blink detection
+    // for dwell-click (false)
     private var lastX = 0f
     private var lastY = 0f
     private var dwellStart: Long = 0
     //threshold for dwell-click
     private val dwellTreshold = 1500L // ms
+
+    //for snap blink (true)
+    private var blink_counter=0
+    private val blinkTreshold = 1000L // ms
+
 
     //for swipe
     private var currentZone: String? = null
@@ -109,6 +124,10 @@ class GazeTrackerService : AccessibilityService() {
         val metrics = Resources.getSystem().displayMetrics
         screenW = metrics.widthPixels
         screenH = metrics.heightPixels
+
+        // get preferences from main activity
+        val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+        clickModeDS= prefs.getBoolean("clickMode", false)
 
         //used to draw the pointer on the screen, above other apps
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
@@ -266,6 +285,20 @@ class GazeTrackerService : AccessibilityService() {
     }
 
     /**
+     * counts blink events and set return true if it is the first blink
+     */
+    private fun blinkFilter():Boolean{
+        if (dwellStart == 0L) dwellStart = System.currentTimeMillis()
+        else if (System.currentTimeMillis() - dwellStart > blinkTreshold) {
+            dwellStart = System.currentTimeMillis()  // reset
+            blink_counter=0
+            Log.i("BLINK","Blink${blink_counter}")
+            return true
+        }
+        blink_counter+=1
+        return false
+    }
+    /**
     * Callback for receiving gaze and blink tracking data.
     */
     private val trackingCallback = object : TrackingCallback {
@@ -284,20 +317,35 @@ class GazeTrackerService : AccessibilityService() {
             }
 
             handleZone(gazeInfo.x, gazeInfo.y)
-
             // only if we are not in an active zone, let dwell-click
-            if (currentZone == null || (currentZone == "SWIPE_UP" && isHomeScreen) || (currentZone == "DOWN" && isKeyboardOpen)) {
-                handleDwellClick(gazeInfo.x, gazeInfo.y)
+            if (!clickModeDS){
+                if (currentZone == null || (currentZone == "SWIPE_UP" && isHomeScreen) || (currentZone == "DOWN" && isKeyboardOpen)) {
+                    handleDwellClick(gazeInfo.x, gazeInfo.y)
+                }
+                //open the menu with right blink
+                if(blinkInfo.isBlinkRight && !blinkInfo.isBlinkLeft && !navMenu.isVisible){
+                    showNavMenu()
+                //close the menu with left blink
+                }else if(blinkInfo.isBlinkLeft && !blinkInfo.isBlinkRight){
+                    hideNavMenu()
+                }
+            }else{
+                if (blinkInfo.isBlinkRight && !blinkInfo.isBlinkLeft){
+                    if (blinkFilter()) {
+                        Log.i("BLINK", "Filtro oltrepassato")
+                        performClick(gazeInfo.x.toInt(), gazeInfo.y.toInt())
+                        Log.i("BLINK","Blink effettuato")
+                    }
+                }else if(!blinkInfo.isBlinkRight && blinkInfo.isBlinkLeft){
+                    if (blinkFilter()) {
+                        if(!navMenu.isVisible){
+                            showNavMenu()
+                        }else{
+                            hideNavMenu()
+                        }
+                    }
+                }
             }
-
-            //open the menu with right blink
-            if(blinkInfo.isBlinkRight && !blinkInfo.isBlinkLeft && !navMenu.isVisible){
-                showNavMenu()
-            //close the menu with left blink
-            }else if(blinkInfo.isBlinkLeft && !blinkInfo.isBlinkRight){
-                hideNavMenu()
-            }
-
         }
         override fun onDrop(timestamp: Long) { /*…*/ }
     }

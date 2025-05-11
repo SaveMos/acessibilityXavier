@@ -11,7 +11,8 @@ data class Device(
     var model: String,
     var brand: String,
     var x: Double,
-    var y: Double
+    var y: Double,
+    var fps: Double
 )
 
 class DeviceAdapter(

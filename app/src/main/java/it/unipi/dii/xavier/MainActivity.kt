@@ -19,6 +19,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.SearchView
+import android.widget.Switch
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -60,11 +61,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var etX: EditText
     private lateinit var etY: EditText
     private lateinit var btnSet: Button
+
     private lateinit var preset: SearchView
     private lateinit var suggestionsRecyclerView: RecyclerView
     private val devices = mutableListOf<Device>()
     private lateinit var adapter: DeviceAdapter
-
+    private lateinit var clickMode:Switch
 
     //default values
     private var paramAngle = 0f
@@ -151,6 +153,7 @@ class MainActivity : AppCompatActivity() {
         btnSet       = findViewById(R.id.btnSet)
         preset       = findViewById(R.id.preset)
         suggestionsRecyclerView = findViewById(R.id.suggest)
+        clickMode    = findViewById(R.id.clickMode)
 
         //read values from shared preferences
         val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
@@ -178,7 +181,8 @@ class MainActivity : AppCompatActivity() {
 
             //not the first run anymore (used to save values in shared preferences)
             prefs.edit {
-                putBoolean("first_run", false)
+                putBoolean("first_run", false);
+                putBoolean("clickMode",clickMode.isChecked)
             }
 
             //hide form
@@ -240,6 +244,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun initDeviceList(context: Context, resor: Int) {
         val parser = context.resources.getXml(resor)
+        val regs=Regex("^[a-zA-Z0-9]+\$")
         var eventType = parser.eventType
         var currentDevice: Device? = null
         var text = ""
@@ -250,8 +255,8 @@ class MainActivity : AppCompatActivity() {
                         val tagName = parser.name
                         Log.i("Devices", "INIZIO tag: $tagName")
 
-                        if (tagName != "resources" && tagName.matches(Regex("^[a-zA-Z0-9]+\$")) && currentDevice == null) {
-                            currentDevice = Device(tagName, "", "", 0.0, 0.0)
+                        if (tagName != "resources" && tagName.matches(regs) && currentDevice == null) {
+                            currentDevice = Device(tagName, "", "", 0.0, 0.0,0.0)
                         }
                     }
 
@@ -268,8 +273,9 @@ class MainActivity : AppCompatActivity() {
                             "Brand" -> currentDevice?.brand = text
                             "x" -> currentDevice?.x = text.toDouble()
                             "y" -> currentDevice?.y = text.toDouble()
+                            "fps"->currentDevice?.fps=text.toDouble()
                             else -> {
-                                if (tagName != "resources" && tagName.matches(Regex("^[a-zA-Z0-9]+\$"))) {
+                                if (tagName != "resources" && tagName.matches(regs)) {
                                     currentDevice?.let { devices.add(it) }
                                     currentDevice = null
                                 }
