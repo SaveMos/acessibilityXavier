@@ -3,10 +3,13 @@ package it.unipi.dii.xavier
 import GazeTrackerSingleton
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -100,6 +103,16 @@ class MainActivity : AppCompatActivity() {
 
     // Handler to schedule tasks on the main thread
     private val handler = Handler(Looper.getMainLooper())
+/*
+    //Ricevitore dei risultatici da EEGsentimentService
+    private val receiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val mentalStatus = intent.getStringExtra("mentalStatus")
+            Log.i("AppProcess", "Received mental status: $mentalStatus")
+            // Aggiorna UI o stato app
+        }
+    }
+*/
 
     /**
      * Initializes UI elements, permissions, and loads initial configuration.
@@ -300,6 +313,8 @@ class MainActivity : AppCompatActivity() {
         //calibration ended, send message to the service to start gaze
         val intent = Intent(GazeTrackerService.ACTION_START_GAZE)
         sendBroadcast(intent)
+        //registrazione e deregistrazione dinamica
+        //unregisterReceiver(receiver)
     }
 
     /**
@@ -513,9 +528,16 @@ class MainActivity : AppCompatActivity() {
 
                 } else if (blinkInfo.isBlinkLeft && !blinkInfo.isBlinkRight) {
                     //Left blink --> go to the home screen
-                    isCalibrated = false
-                    val i = Intent("it.unipi.dii.xavier.BACK")
-                    sendBroadcast(i)
+                    try {
+                        isCalibrated = false
+                        val i = Intent("it.unipi.dii.xavier.BACK")
+                        sendBroadcast(i)
+                        //Fa partire il servizio EEGSentimentService
+                        val serviceIntent = Intent(this@MainActivity, EEGsentimentService::class.java)
+                        startService(serviceIntent)
+                    } catch (e: Exception) {
+                        Log.e("AppProcess", "Errore startService: ${e.message}", e)
+                    }
                 }
             }
         }
@@ -525,6 +547,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /*
+    //Serve a registrare il broadcast receiver
+    override fun onResume() {
+        super.onResume()
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { //struttura necessaria per la questione del versioning (che palle Android)
+            Context.RECEIVER_EXPORTED
+        } else {
+            0
+        }
+        registerReceiver(receiver, IntentFilter("EEG_MENTAL_STATUS"), flags)
+
+    }
+*/
     /**
      * Cleans up resources such as thread pool when activity is destroyed.
      */

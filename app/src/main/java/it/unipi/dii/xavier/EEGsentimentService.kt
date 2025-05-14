@@ -1,0 +1,217 @@
+package it.unipi.dii.xavier
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.util.Log
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import com.chaquo.python.Python
+import mylibrary.mindrove.Instruction
+import mylibrary.mindrove.SensorData
+import mylibrary.mindrove.ServerManager
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import android.app.Service
+import android.content.Context
+
+import android.content.Intent
+import android.os.Build
+import android.os.IBinder
+import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.*
+
+
+class EEGsentimentService : Service() {
+    private lateinit var serverManager: ServerManager  //gestore dei dati di ingresso del EEG
+
+    //STATI APPLICAZIONE
+    private var isServerManagerStarted = false
+    private var isEEGConnected = false
+    private var mentalStatus="No mental status yet"
+
+    //BUFFER
+    private val EEG_fs=500 //frequenza campionamento EEG
+    private val canali_parsati=6 //numero di canali parsati a python (EEG ne ha 6 utilizzabili)
+    private val window_size=4    //grandezza della finestra di dati in secondi
+    private val campioni_buffer_totali=EEG_fs*canali_parsati*window_size
+    private val python_timer :Long =500  //frequenza di lancio di python in ms
+    private val python_window=1  //grandezza finestra di python in secondi
+    private  val campioni_buffer_python=EEG_fs*python_window*canali_parsati
+    private val eegBuffer = CircularEEGBuffer(campioni_buffer_totali,campioni_buffer_python)
+
+
+    //Riferimento al codice python
+    private val py = Python.getInstance()
+    private val pyModule = py.getModule("XavierClassifier") //file python associato in app/src/main/python/...
+    private val functionName="analyze_live_blink"  //nome della funzione nel file python
+    private var isPythonBusy = false  //impedisce che più funzioni python vengano lanciate contemporaneamente
+
+
+    private var serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (!isNetworkAvailable()) {
+            Log.e("AppProcess", "No network connection. Please enable Wi-Fi.")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+
+        createNotificationChannel(this)
+        val notification = NotificationCompat.Builder(this, "eeg_channel_id")
+            .setContentTitle("EEG attivo")
+            .setContentText("In ascolto dei dati mentali...")
+            .setSmallIcon(R.drawable.ic_brain)
+            .build()
+        startForeground(1, notification)
+
+        Log.i("AppProcess","Starting server manager")
+        try {
+            //Funzione che gestisce i dati quando arrivano
+            serverManager = ServerManager { sensorData: SensorData ->
+                //SCRITTURA DATI SUL BUFFER
+                eegBuffer.addSamples(//conversione double ->float (non serve tutta questa precisione)
+                    listOf(
+                        sensorData.channel1.toFloat(),
+                        sensorData.channel2.toFloat(),
+                        sensorData.channel3.toFloat(),
+                        sensorData.channel4.toFloat(),
+                        sensorData.channel5.toFloat(),
+                        sensorData.channel6.toFloat()
+                    )
+                )
+                Log.d("EEGsignal", "Received channel1: ${sensorData.channel1}")
+                Log.d("EEGsignal", "Approximation: ${sensorData.channel1.toFloat()}")
+
+                if (!isEEGConnected) {
+                    isEEGConnected = true
+                    //attiva il codice python per analizzare i dati
+                    startStreaming()  // Avvia il timer SOLO dopo il primo campione ricevuto
+                    Log.i("AppProcess","Streaming started")
+                }
+            }
+
+            //serverManager.sendInstruction(Instruction.EEG)
+
+            Log.i("AppProcess", "Instruction EEG inviata")
+            serverManager.start() //cerca di avviare il gestore del EEG
+            Log.i("AppProcess","Server manager started")
+        }catch (e: Exception){
+            Log.e("AppProcess", "Error starting server manager: ${e.message}")
+            //chiude l'applicazione in caso di errore
+            stopSelf()
+        }
+        isServerManagerStarted = true
+
+        return START_STICKY
+    }
+
+
+    //Metodo che gestisce il timer per lanciare il codice python
+    private fun startStreaming() {
+        serviceScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                try {
+                    if (eegBuffer.hasEnoughData() && !isPythonBusy) {
+                        isPythonBusy = true
+                        /*
+                        val result =  withContext(Dispatchers.Default) { //siccome è CPU-intensive
+                            pyModule.callAttr(
+                                functionName,
+                                eegBuffer.getFloatArray(),
+                                canali_parsati
+                            ).toFloat()
+                        }
+                        mentalStatus=result.toString()
+                        */
+
+                        /*
+                        // Invia il valore alla MainActivity (va inviato solo se la persona sta in uno stato costante)
+                        val broadcastIntent = Intent("EEG_MENTAL_STATUS")
+                        broadcastIntent.putExtra("mentalStatus", mentalStatus)
+                        sendBroadcast(broadcastIntent)
+                         */
+                        Log.e("AppProcess", "Intent broadcasted: $mentalStatus")
+                    }
+                } catch (e: Exception) {
+                    Log.e("PyBridge", "Python error: ${e.message}")
+                } finally {
+                    isPythonBusy = false
+                }
+                delay(python_timer)
+            }
+        }
+    }
+    fun createNotificationChannel(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                "eeg_channel_id",
+                "EEG Monitoring",
+                NotificationManager.IMPORTANCE_LOW // basso rumore
+            )
+            channel.description = "Canale per il monitoraggio EEG in tempo reale"
+            val notificationManager = context.getSystemService(NotificationManager::class.java)
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        //Ferma il ServerManager.
+        serverManager.stop()
+        serviceScope.cancel()
+    }
+    override fun onBind(intent: Intent?): IBinder? = null
+    private fun isNetworkAvailable(): Boolean {
+        val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork
+        val capabilities = connectivityManager.getNetworkCapabilities(network)
+        return capabilities != null &&
+                (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR))
+    }
+}
+
+
+class CircularEEGBuffer(private val capacity: Int, private val windowSize : Int) {
+    private val grandezza_campione=4   //grandezza di un campione in byte (4 per float32)
+    private val buffer: ByteBuffer = ByteBuffer.allocateDirect(capacity * grandezza_campione).order(ByteOrder.nativeOrder())
+    private var writePos = 0
+    private var readPos = 0
+
+    fun addSample(sample: Float) {
+        buffer.putFloat((writePos % capacity) * 4, sample)
+        writePos = (writePos + 1) % capacity
+    }
+
+    fun addSamples(samples: List<Float>) {
+        for (sample in samples) {
+            addSample(sample)
+        }
+    }
+
+    fun hasEnoughData(): Boolean {
+        val distance = if (writePos >= readPos) writePos - readPos else capacity - (readPos - writePos)
+        return distance >= windowSize
+    }
+
+    fun getFloatArray(): FloatArray {
+        val output = FloatArray(windowSize)
+        var localRead = readPos
+        for (i in 0 until windowSize) {
+            output[i] = buffer.getFloat((localRead % capacity) * 4)
+            localRead = (localRead + 1) % capacity
+        }
+        readPos = (readPos + windowSize) % capacity
+        return output
+    }
+}
+
+
+
+
