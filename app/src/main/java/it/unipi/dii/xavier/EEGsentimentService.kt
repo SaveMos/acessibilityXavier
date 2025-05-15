@@ -51,7 +51,6 @@ class EEGsentimentService : Service() {
     private val funInitModel="model_init"  //nome della funzione nel file python
     private val funClassifier="EEG_classifier"
     private var isPythonBusy = false  //impedisce che più funzioni python vengano lanciate contemporaneamente
-    private var isModelInit=false
 
     private var serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -70,6 +69,16 @@ class EEGsentimentService : Service() {
             .setSmallIcon(R.drawable.ic_brain)
             .build()
         startForeground(1, notification)
+
+        Log.i("AppProcess","Initializing XavierModel in python")
+        val result = pyModule.callAttr(funInitModel).toBoolean()
+        if (result){
+            Log.e("AppProcess", "Model initialized")
+        }else{
+            Log.e("AppProcess", "Model not initialized")
+            stopSelf()
+            return START_NOT_STICKY
+        }
 
         Log.i("AppProcess","Starting server manager")
         try {
@@ -95,7 +104,6 @@ class EEGsentimentService : Service() {
                     startStreaming()  // Avvia il timer SOLO dopo il primo campione ricevuto
                     Log.i("AppProcess","Streaming started")
                 }
-                startStreaming()  // Avvia il timer SOLO dopo il primo campione ricevuto
             }
 
             //serverManager.sendInstruction(Instruction.EEG)
@@ -121,22 +129,6 @@ class EEGsentimentService : Service() {
                 try {
                     if (eegBuffer.hasEnoughData() && !isPythonBusy) {
                         isPythonBusy = true
-                        if (!isModelInit){
-                            val result =  withContext(Dispatchers.Default) { //siccome è CPU-intensive
-                                pyModule.callAttr(
-                                    funInitModel,
-                                    eegBuffer.getFloatArray(),
-                                    canali_parsati
-                                ).toBoolean()
-                            }
-                            if (result){
-                                isModelInit=true
-                                Log.e("AppProcess", "Model initialized")
-                            }else{
-                                Log.e("AppProcess", "Model not initialized")
-                                stopSelf()
-                            }
-                        }
                         val mentalStatus =  withContext(Dispatchers.Default) { //siccome è CPU-intensive
                             pyModule.callAttr(
                                 funClassifier,
@@ -144,9 +136,19 @@ class EEGsentimentService : Service() {
                                 canali_parsati
                             ).toBoolean()
                         }
+                        /*
+                            FONDAMENTALE: bisogna capire ogni quanto tempo fare l'analisi e mandare il risultato del cambiamento di stato del paziente
+                            Casistiche:
+                            1) aumentare o diminuire python_timer per indicare ogni quanto viene analizzati i dati dei segnali EEG e inviata la risposta
+                            2) lasciare a 1000 il timer e implementare una funzione che se rileva per un certo numero di secondi un cambiamento di stato allora
+                                invia il risultato di cambiamento di stato (più responsiva e fedele)
+                            3) nella versione raw si accetta ogni prediction come cambiamento di stato (più instabile, può portare a maggior overhead e a continue attivazioni e disattivazione hardware)
+
+                            Si ricorda che il cambiamento di stato è legato alla disattivazione e riattivazione della fotocamera.
+                         */
 
                         /*
-                        // Invia il valore alla MainActivity (va inviato solo se la persona sta in uno stato costante)
+                        // Invia il valore alla MainActivity tramite Intent
                         val broadcastIntent = Intent("EEG_MENTAL_STATUS")
                         broadcastIntent.putExtra("mentalStatus", mentalStatus)
                         sendBroadcast(broadcastIntent)
