@@ -1,16 +1,35 @@
-'''
 import numpy as np
 from scipy.signal import butter, lfilter, filtfilt, welch
+
 from numpy import trapz
 import joblib
 import pandas as pd
 from os.path import dirname,join
-'''
 
 
-
-'''
 fs=500
+modello=None
+scaler=None
+
+def model_init():
+    try:
+        '''
+        #salvati dove c'è lo script python
+        model_path=join(dirname(__file__),"XavierModel.sav")
+        scaler_path=join(dirname(__file__),"scaler.pkl")
+
+        #Caricamento modello
+        modello = joblib.load(model_path)
+        #Caricamento scaler
+        scaler = joblib.load(scaler_path)        
+        '''
+
+        return 1
+    except Exception as e:
+        print(f"Python [init]: Exception occurred: {str(e)}")
+        return 0  # Torna False in caso di errore per evitare crash
+
+
 
 def lowpass(sig, fc=10, sampling_frequency_hz=fs, filter_order=4):
     """
@@ -120,17 +139,8 @@ def band_power(frequencies, psd, low_freq, high_freq):
     return trapz(psd[beta_mask], frequencies[beta_mask])
 
 
-def analyze_live_blink(buffer, n_canali):
+def EEG_classifier(buffer, n_canali):
     try:
-        #salvati dove c'è lo script python
-        model_path=join(dirname(__file__),"XavierModel.sav")
-        scaler_path=join(dirname(__file__),"scaler.pkl")
-
-        #Caricamento modello
-        modello = joblib.load(model_path)
-        #Caricamento scaler
-        scaler = joblib.load(scaler_path)
-
         buffer = np.frombuffer(buffer, dtype=np.float32)
         if buffer.size % n_canali != 0:
             buffer = buffer[:(buffer.size // n_canali) * n_canali]
@@ -142,9 +152,7 @@ def analyze_live_blink(buffer, n_canali):
         #2
         #...
         #500
-
         combined_signal=combine_filtered_channels(window, method='sum')
-
         frequencies, psd = welch(combined_signal, fs=fs, nperseg=min(1024, len(combined_signal)))
 
         alpha=np.real(band_power(frequencies, psd, 8, 12.9))  # Alpha band power.
@@ -158,17 +166,17 @@ def analyze_live_blink(buffer, n_canali):
             "Gamma": gamma,
             "Theta": theta
         }])
-
+        '''
         #Scaling con scaler
         X_scaled = scaler.transform(X)
-
         #Prediction
-        preds = modello.predict(X_scaled) #è 0 o 1
+        preds = modello.predict(X_scaled) #è 0 o 1        
+        '''
 
-        return int(preds[0])
+        #return int(preds[0])
+        return 1
     except Exception as e:
         print(f"Python: Exception occurred: {str(e)}")
         return 0  # Torna False in caso di errore per evitare crash
-'''
-def analyze_live_blink(buffer, n_canali):
-    return 0
+
+

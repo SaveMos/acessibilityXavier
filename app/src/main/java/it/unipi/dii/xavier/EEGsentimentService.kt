@@ -48,9 +48,10 @@ class EEGsentimentService : Service() {
     //Riferimento al codice python
     private val py = Python.getInstance()
     private val pyModule = py.getModule("XavierClassifier") //file python associato in app/src/main/python/...
-    private val functionName="analyze_live_blink"  //nome della funzione nel file python
+    private val funInitModel="model_init"  //nome della funzione nel file python
+    private val funClassifier="EEG_classifier"
     private var isPythonBusy = false  //impedisce che più funzioni python vengano lanciate contemporaneamente
-
+    private var isModelInit=false
 
     private var serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -94,6 +95,7 @@ class EEGsentimentService : Service() {
                     startStreaming()  // Avvia il timer SOLO dopo il primo campione ricevuto
                     Log.i("AppProcess","Streaming started")
                 }
+                startStreaming()  // Avvia il timer SOLO dopo il primo campione ricevuto
             }
 
             //serverManager.sendInstruction(Instruction.EEG)
@@ -119,16 +121,29 @@ class EEGsentimentService : Service() {
                 try {
                     if (eegBuffer.hasEnoughData() && !isPythonBusy) {
                         isPythonBusy = true
-                        /*
-                        val result =  withContext(Dispatchers.Default) { //siccome è CPU-intensive
+                        if (!isModelInit){
+                            val result =  withContext(Dispatchers.Default) { //siccome è CPU-intensive
+                                pyModule.callAttr(
+                                    funInitModel,
+                                    eegBuffer.getFloatArray(),
+                                    canali_parsati
+                                ).toBoolean()
+                            }
+                            if (result){
+                                isModelInit=true
+                                Log.e("AppProcess", "Model initialized")
+                            }else{
+                                Log.e("AppProcess", "Model not initialized")
+                                stopSelf()
+                            }
+                        }
+                        val mentalStatus =  withContext(Dispatchers.Default) { //siccome è CPU-intensive
                             pyModule.callAttr(
-                                functionName,
+                                funClassifier,
                                 eegBuffer.getFloatArray(),
                                 canali_parsati
-                            ).toFloat()
+                            ).toBoolean()
                         }
-                        mentalStatus=result.toString()
-                        */
 
                         /*
                         // Invia il valore alla MainActivity (va inviato solo se la persona sta in uno stato costante)
