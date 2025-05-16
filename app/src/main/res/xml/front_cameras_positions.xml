@@ -24,4 +24,12 @@
         <y>0</y>
         <fps>12.1</fps>
     </RedmiNote8Pro>
+    <SamsungGalaxyS22>
+        <Name>Galaxy S22</Name>
+        <Model>SM-S901B</Model>
+        <Brand>Samsung</Brand>
+        <x>-35.0</x>
+        <y>5</y>
+        <fps>60.0</fps>
+    </SamsungGalaxyS22>
 </resources>
