@@ -171,9 +171,9 @@ def EEG_classifier(buffer, n_canali):
             "Gamma": gamma,
             "Theta": theta
         }])
-
         #Scaling con scaler
-        X_scaled = scaler.transform(X)
+        X_scaled = pd.DataFrame(scaler.transform(X), columns=["Alpha", "Beta", "Gamma", "Theta"])
+
         #Prediction
         preds = modello.predict(X_scaled) #è 0 o 1        
 

@@ -172,8 +172,11 @@ class EEGsentimentService : Service() {
 
                             Si ricorda che il cambiamento di stato è legato alla disattivazione e riattivazione della fotocamera.
                          */
-                        //mentalStatus=predizione.toString()
-                        //updateMentalStatus(predizione)
+
+                        if (predizione==0)
+                            updateMentalStatus(false)
+                        else
+                            updateMentalStatus(true)
 
                         /*
                         // Invia il valore alla MainActivity tramite Intent
@@ -182,6 +185,7 @@ class EEGsentimentService : Service() {
                         sendBroadcast(broadcastIntent)
                          */
                         Log.e("AppProcess", "Intent broadcasted: $predizione")
+                        Log.i("AppProcess", "Mental status: $mentalStatus")
                     }
                 } catch (e: Exception) {
                     Log.e("PyBridge", "Python error: ${e.message}")
