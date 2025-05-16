@@ -6,6 +6,10 @@ import joblib
 import pandas as pd
 from os.path import dirname,join
 
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.preprocessing import StandardScaler
+
+
 
 fs=500
 modello=None
@@ -13,7 +17,8 @@ scaler=None
 
 def model_init():
     try:
-        '''
+        global modello
+        global scaler
         #salvati dove c'è lo script python
         model_path=join(dirname(__file__),"XavierModel.sav")
         scaler_path=join(dirname(__file__),"scaler.pkl")
@@ -22,12 +27,12 @@ def model_init():
         modello = joblib.load(model_path)
         #Caricamento scaler
         scaler = joblib.load(scaler_path)        
-        '''
 
-        return 1
+
+        return True
     except Exception as e:
         print(f"Python [init]: Exception occurred: {str(e)}")
-        return 0  # Torna False in caso di errore per evitare crash
+        return False  # Torna False in caso di errore per evitare crash
 
 
 
@@ -166,17 +171,17 @@ def EEG_classifier(buffer, n_canali):
             "Gamma": gamma,
             "Theta": theta
         }])
-        '''
+
         #Scaling con scaler
         X_scaled = scaler.transform(X)
         #Prediction
         preds = modello.predict(X_scaled) #è 0 o 1        
-        '''
 
-        #return int(preds[0])
-        return 1
+
+        return int(preds[0])
+        #return 1
     except Exception as e:
-        print(f"Python: Exception occurred: {str(e)}")
+        print(f"Python [model]: Exception occurred: {str(e)}")
         return 0  # Torna False in caso di errore per evitare crash
 
 

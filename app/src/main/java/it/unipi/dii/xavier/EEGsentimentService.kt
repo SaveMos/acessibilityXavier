@@ -60,6 +60,7 @@ class EEGsentimentService : Service() {
     private var isPythonBusy = false  //impedisce che più funzioni python vengano lanciate contemporaneamente
 
     private var serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var serviceInit = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (!isNetworkAvailable()) {
@@ -78,13 +79,17 @@ class EEGsentimentService : Service() {
         startForeground(1, notification)
 
         Log.i("AppProcess","Initializing XavierModel in python")
-        val result = pyModule.callAttr(funInitModel).toBoolean()
-        if (result){
-            Log.e("AppProcess", "Model initialized")
-        }else{
-            Log.e("AppProcess", "Model not initialized")
-            stopSelf()
-            return START_NOT_STICKY
+        var result=false
+        serviceInit.launch(Dispatchers.IO) {
+            Log.i("AppProcess","Launching...")
+            result = withContext(Dispatchers.Default) {pyModule.callAttr(funInitModel).toBoolean()}
+            Log.i("AppProcess","Returned:${result}")
+            if (result){
+                Log.i("AppProcess", "Model initialized")
+            }else{
+                Log.e("AppProcess", "Model not initialized")
+                stopSelf()
+            }
         }
 
         Log.i("AppProcess","Starting server manager")
@@ -155,7 +160,7 @@ class EEGsentimentService : Service() {
                                 funClassifier,
                                 eegBuffer.getFloatArray(),
                                 canali_parsati
-                            ).toBoolean()
+                            ).toInt()
                         }
                         /*
                             FONDAMENTALE: bisogna capire ogni quanto tempo fare l'analisi e mandare il risultato del cambiamento di stato del paziente
@@ -167,8 +172,8 @@ class EEGsentimentService : Service() {
 
                             Si ricorda che il cambiamento di stato è legato alla disattivazione e riattivazione della fotocamera.
                          */
-
-                        updateMentalStatus(predizione)
+                        //mentalStatus=predizione.toString()
+                        //updateMentalStatus(predizione)
 
                         /*
                         // Invia il valore alla MainActivity tramite Intent
@@ -176,7 +181,7 @@ class EEGsentimentService : Service() {
                         broadcastIntent.putExtra("mentalStatus", mentalStatus)
                         sendBroadcast(broadcastIntent)
                          */
-                        Log.e("AppProcess", "Intent broadcasted: $mentalStatus")
+                        Log.e("AppProcess", "Intent broadcasted: $predizione")
                     }
                 } catch (e: Exception) {
                     Log.e("PyBridge", "Python error: ${e.message}")
@@ -203,8 +208,10 @@ class EEGsentimentService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         //Ferma il ServerManager.
-        serverManager.stop()
-        serviceScope.cancel()
+        if (isServerManagerStarted){
+            serverManager.stop()
+            serviceScope.cancel()
+        }
     }
     override fun onBind(intent: Intent?): IBinder? = null
     private fun isNetworkAvailable(): Boolean {

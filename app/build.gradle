@@ -62,12 +62,13 @@ chaquopy {
         version = "3.10"   //Python version usata da chaquopy
         buildPython("C:/Users/nilof/AppData/Local/Programs/Python/Python310/python.exe")  //Path di windows dove trovare la build python
         pip {
-            install("numpy")
-            install("scipy")
-            install ('joblib')
-            install ('pandas')
-            //install("numpy==1.23.3")  // 1.17.3 e 1.24.0, 1.22.3 la prima per python
-            //install("scipy==1.8.1")
+            //install("numpy")
+            //install("scipy")
+            install("numpy==1.23.3")  // 1.17.3 e 1.24.0, 1.22.3 la prima per python
+            install("scipy==1.8.1")
+            install ('joblib') //1.5.0
+            install ('pandas')//2.1.3
+            install('scikit-learn')//1.3.2
             //install("joblib")
             //install("pandas")
             //install("os")
