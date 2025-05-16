@@ -24,6 +24,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.*
+import java.util.LinkedList
 
 
 class EEGsentimentService : Service() {
@@ -33,6 +34,12 @@ class EEGsentimentService : Service() {
     private var isServerManagerStarted = false
     private var isEEGConnected = false
     private var mentalStatus="No mental status yet"
+
+    //Variabili per il filtro dello stato mentale
+    private val mentalStatusHistory = LinkedList<Boolean>()
+    private val mentalStatusWindowSize = 5 // Dimensione della finestra per la stabilizzazione
+    private val mentalStatusStabilityThresholdPercentage = 0.6 // Soglia di maggioranza
+
 
     //BUFFER
     private val EEG_fs=500 //frequenza campionamento EEG
@@ -120,7 +127,21 @@ class EEGsentimentService : Service() {
 
         return START_STICKY
     }
+    private fun updateMentalStatus(prediction: Boolean) {
+        mentalStatusHistory.addLast(prediction)
+        if (mentalStatusHistory.size > mentalStatusWindowSize) {
+            mentalStatusHistory.removeFirst()
+        }
 
+        if (mentalStatusHistory.size >= mentalStatusWindowSize) {
+            val trueCount = mentalStatusHistory.count { it }
+            val truePercentage = trueCount.toDouble() / mentalStatusHistory.size
+            mentalStatus = if (truePercentage >= mentalStatusStabilityThresholdPercentage) "Stabile (True)" else "Stabile (False)"
+        } else {
+            // Se non abbiamo abbastanza dati per la finestra, mostriamo lo stato grezzo
+            mentalStatus = if (prediction) "Stabile (True)" else "Instabile (False)"
+        }
+    }
 
     //Metodo che gestisce il timer per lanciare il codice python
     private fun startStreaming() {
@@ -129,7 +150,7 @@ class EEGsentimentService : Service() {
                 try {
                     if (eegBuffer.hasEnoughData() && !isPythonBusy) {
                         isPythonBusy = true
-                        val mentalStatus =  withContext(Dispatchers.Default) { //siccome è CPU-intensive
+                        val predizione =  withContext(Dispatchers.Default) { //siccome è CPU-intensive
                             pyModule.callAttr(
                                 funClassifier,
                                 eegBuffer.getFloatArray(),
@@ -146,6 +167,8 @@ class EEGsentimentService : Service() {
 
                             Si ricorda che il cambiamento di stato è legato alla disattivazione e riattivazione della fotocamera.
                          */
+
+                        updateMentalStatus(predizione)
 
                         /*
                         // Invia il valore alla MainActivity tramite Intent
