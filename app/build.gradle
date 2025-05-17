@@ -61,6 +61,7 @@ chaquopy {
     defaultConfig {
         version = "3.10"   //Python version usata da chaquopy
         buildPython("C:/Users/nilof/AppData/Local/Programs/Python/Python310/python.exe")  //Path di windows dove trovare la build python
+        //buildPython("C:/Users/gabri/AppData/Local/Programs/Python/Python310/python.exe")
         pip {
             //install("numpy")
             //install("scipy")

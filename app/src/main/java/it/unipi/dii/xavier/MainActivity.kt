@@ -50,6 +50,7 @@ import java.util.concurrent.Executors
 import androidx.core.content.edit
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.ar.core.CameraConfig.TargetFps
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.InputStream
@@ -70,6 +71,9 @@ class MainActivity : AppCompatActivity() {
     private val devices = mutableListOf<Device>()
     private lateinit var adapter: DeviceAdapter
     private lateinit var clickMode:Switch
+
+    private var flagFPS: Boolean = true         //flag for testing with reduced fps
+    private var fps: Double = 0.0
 
     //default values
     private var paramAngle = 0f
@@ -294,6 +298,9 @@ class MainActivity : AppCompatActivity() {
                                 }
                             }
                         }
+                        if (currentDevice != null) {
+                            fps = currentDevice.fps
+                        }
                     }
                 }
                 eventType = parser.next()
@@ -381,7 +388,12 @@ class MainActivity : AppCompatActivity() {
 
                 gazeTracker.addCameraPosition(cameraPosition)
                 //reduce front camera fps for a more stable gaze tracking
-                //gazeTracker.setTrackingFPS(20)
+                if(flagFPS) {
+                    gazeTracker.setTrackingFPS(20)
+                }else{
+                    //otherwise use the fps value in the xml file
+                    gazeTracker.setTrackingFPS(fps.toInt())
+                }
 
                 //open the camera and start tracking the gaze
                 gazeTracker.startTracking()

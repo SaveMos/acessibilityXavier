@@ -23,12 +23,16 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import camp.visual.eyedid.gazetracker.GazeTracker
 import kotlinx.coroutines.*
 import java.util.LinkedList
 
 
 class EEGsentimentService : Service() {
     private lateinit var serverManager: ServerManager  //gestore dei dati di ingresso del EEG
+
+    //Gaze tracker responsible for capturing gaze and blink data
+    private var gazeTracker: GazeTracker? = GazeTrackerSingleton.tracker
 
     //STATI APPLICAZIONE
     private var isServerManagerStarted = false
@@ -142,10 +146,22 @@ class EEGsentimentService : Service() {
             val trueCount = mentalStatusHistory.count { it }
             val truePercentage = trueCount.toDouble() / mentalStatusHistory.size
             mentalStatus = if (truePercentage >= mentalStatusStabilityThresholdPercentage) "Stabile (True)" else "Stabile (False)"
+
+            if(mentalStatus == "Stabile (False)"){
+                if(!(gazeTracker?.isTracking)!!){
+                    gazeTracker!!.startTracking()
+                }
+            }else{
+                if(gazeTracker?.isTracking == true){
+                    gazeTracker!!.stopTracking()
+                }
+            }
+
         } else {
             // Se non abbiamo abbastanza dati per la finestra, mostriamo lo stato grezzo
             mentalStatus = if (prediction) "Stabile (True)" else "Instabile (False)"
         }
+
     }
 
     //Metodo che gestisce il timer per lanciare il codice python
