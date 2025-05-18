@@ -545,8 +545,8 @@ class MainActivity : AppCompatActivity() {
                         val i = Intent("it.unipi.dii.xavier.BACK")
                         sendBroadcast(i)
                         //Fa partire il servizio EEGSentimentService
-                        val serviceIntent = Intent(this@MainActivity, EEGsentimentService::class.java)
-                        startService(serviceIntent)
+                        //val serviceIntent = Intent(this@MainActivity, EEGsentimentService::class.java)
+                        //startService(serviceIntent)
                     } catch (e: Exception) {
                         Log.e("AppProcess", "Errore startService: ${e.message}", e)
                     }

@@ -32,9 +32,7 @@ def apply_highpass_filter(x, fs, cutoff=0.5, order=4):
 def model_init():
     try:
         global modello
-        #nomeModel="XavierModel(versione3Min).sav"
-        #nomeModel="XavierModel.sav"
-        nomeModel="eegnet_model.sav"
+        nomeModel="XavierModel.sav"
         #salvati dove c'è lo script python
         model_path=join(dirname(__file__),nomeModel)
         #Caricamento modello
@@ -79,15 +77,10 @@ def EEG_classifier(buffer, n_canali):
 
         #situazione=1 #occhi chiusi
         print(binary_signal)
-        #if binary_signal.size > 0:
-         #   situazione = np.argmax(np.bincount(binary_signal))
+        if binary_signal.size > 0:
+            situazione = np.argmax(np.bincount(binary_signal))
             #print("Moda calcolata")
-        if 0 in binary_signal :
-            situazione=0
-        else:
-            situazione=1
-
-        if situazione==0:
+        if situazione==1:
             print("Occhi chiusi")
         else:
             print("Occhi aperti")
