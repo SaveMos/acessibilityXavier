@@ -48,13 +48,12 @@ class EEGsentimentService : Service() {
     //BUFFER
     private val EEG_fs=500 //frequenza campionamento EEG
     private val canali_parsati=6 //numero di canali parsati a python (EEG ne ha 6 utilizzabili)
-    private val window_size=4    //grandezza della finestra di dati in secondi
+    private val window_size=2    //grandezza della finestra di dati in secondi
     private val campioni_buffer_totali=EEG_fs*canali_parsati*window_size
     private val python_timer :Long =500  //frequenza di lancio di python in ms
     private val python_window=1  //grandezza finestra di python in secondi
     private  val campioni_buffer_python=EEG_fs*python_window*canali_parsati
     private val eegBuffer = CircularEEGBuffer(campioni_buffer_totali,campioni_buffer_python)
-
 
     //Riferimento al codice python
     private val py = Python.getInstance()
@@ -103,12 +102,12 @@ class EEGsentimentService : Service() {
                 //SCRITTURA DATI SUL BUFFER
                 eegBuffer.addSamples(//conversione double ->float (non serve tutta questa precisione)
                     listOf(
-                        sensorData.channel1.toFloat(),
-                        sensorData.channel2.toFloat(),
-                        sensorData.channel3.toFloat(),
-                        sensorData.channel4.toFloat(),
-                        sensorData.channel5.toFloat(),
-                        sensorData.channel6.toFloat()
+                        sensorData.channel1,
+                        sensorData.channel2,
+                        sensorData.channel3,
+                        sensorData.channel4,
+                        sensorData.channel5,
+                        sensorData.channel6
                     )
                 )
                 Log.d("EEGsignal", "Received channel1: ${sensorData.channel1}")
@@ -190,9 +189,9 @@ class EEGsentimentService : Service() {
                          */
 
                         if (predizione==0)
-                            updateMentalStatus(false)
+                            updateMentalStatus(false) //occhi aperti
                         else
-                            updateMentalStatus(true)
+                            updateMentalStatus(true) //occhi chiusi
 
                         /*
                         // Invia il valore alla MainActivity tramite Intent
@@ -246,17 +245,17 @@ class EEGsentimentService : Service() {
 
 
 class CircularEEGBuffer(private val capacity: Int, private val windowSize : Int) {
-    private val grandezza_campione=4   //grandezza di un campione in byte (4 per float32)
+    private val grandezza_campione=8   //grandezza di un campione in byte (float64)
     private val buffer: ByteBuffer = ByteBuffer.allocateDirect(capacity * grandezza_campione).order(ByteOrder.nativeOrder())
     private var writePos = 0
     private var readPos = 0
 
-    fun addSample(sample: Float) {
-        buffer.putFloat((writePos % capacity) * 4, sample)
+    fun addSample(sample: Double) {
+        buffer.putDouble((writePos % capacity) * grandezza_campione, sample)
         writePos = (writePos + 1) % capacity
     }
 
-    fun addSamples(samples: List<Float>) {
+    fun addSamples(samples: List<Double>) {
         for (sample in samples) {
             addSample(sample)
         }
@@ -267,11 +266,11 @@ class CircularEEGBuffer(private val capacity: Int, private val windowSize : Int)
         return distance >= windowSize
     }
 
-    fun getFloatArray(): FloatArray {
-        val output = FloatArray(windowSize)
+    fun getFloatArray(): DoubleArray {
+        val output = DoubleArray(windowSize)
         var localRead = readPos
         for (i in 0 until windowSize) {
-            output[i] = buffer.getFloat((localRead % capacity) * 4)
+            output[i] = buffer.getDouble((localRead % capacity) * grandezza_campione)
             localRead = (localRead + 1) % capacity
         }
         readPos = (readPos + windowSize) % capacity
