@@ -69,10 +69,15 @@ def EEG_classifier(buffer, n_canali):
         tabella_numpy = np.column_stack(processed_channels)
 
         # Simulazione di finestra live (ad esempio 1 secondo a 500Hz = 500 campioni)
-        X = pd.DataFrame(tabella_numpy, columns=["CH1", "CH2", "CH3", "CH4", "CH5", "CH6"])
+        colonne = ["CH1", "CH2", "CH3", "CH4", "CH5", "CH6"]
+        X = pd.DataFrame(tabella_numpy, columns=colonne)
+
+        # Calcola la media di tutte le righe di X come DataFrame con i nomi delle colonne
+        media_riga = pd.DataFrame(X.mean(axis=0)).T
+        media_riga.columns = colonne
 
         # Predizione
-        binary_signal = modello.predict(X)
+        binary_signal = modello.predict(media_riga)
         #print("Dati predetti")
 
         #situazione=1 #occhi chiusi
@@ -81,9 +86,9 @@ def EEG_classifier(buffer, n_canali):
             situazione = np.argmax(np.bincount(binary_signal))
             #print("Moda calcolata")
         if situazione==1:
-            print("Occhi chiusi")
-        else:
             print("Occhi aperti")
+        else:
+            print("Occhi chiusi")
 
         return situazione
     except Exception as e:

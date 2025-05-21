@@ -72,7 +72,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adapter: DeviceAdapter
     private lateinit var clickMode:Switch
 
-    private var flagFPS: Boolean = true         //flag for testing with reduced fps
+    private var flagFPS: Boolean = false         //flag for testing with reduced fps
     private var fps: Double = 0.0
 
     //default values
@@ -107,16 +107,6 @@ class MainActivity : AppCompatActivity() {
 
     // Handler to schedule tasks on the main thread
     private val handler = Handler(Looper.getMainLooper())
-/*
-    //Ricevitore dei risultatici da EEGsentimentService
-    private val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            val mentalStatus = intent.getStringExtra("mentalStatus")
-            Log.i("AppProcess", "Received mental status: $mentalStatus")
-            // Aggiorna UI o stato app
-        }
-    }
-*/
 
     /**
      * Initializes UI elements, permissions, and loads initial configuration.
@@ -128,6 +118,7 @@ class MainActivity : AppCompatActivity() {
         //initDeviceList
         initDeviceList(this,R.xml.front_cameras_positions)
         Log.i("Devices", "Lista inizializzata: $devices")
+
 
 
         //hide action bar
@@ -174,8 +165,9 @@ class MainActivity : AppCompatActivity() {
 
         //read values from shared preferences
         val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
-        val firstRun = prefs.getBoolean("first_run", true)
+        var firstRun = prefs.getBoolean("first_run", true)
 
+        firstRun=true
         //check if it is the first run ever
         if (!firstRun) {
             //not for the first time, hide the form, values already set
@@ -186,6 +178,10 @@ class MainActivity : AppCompatActivity() {
             //first run, show form
             initialForm.visibility = View.VISIBLE
         }
+
+        //Fa partire il servizio EEGSentimentService
+        val serviceIntent = Intent(this@MainActivity, EEGsentimentService::class.java)
+        startService(serviceIntent)
 
         //set listener to "Set" Button
         btnSet.setOnClickListener {
@@ -397,7 +393,8 @@ class MainActivity : AppCompatActivity() {
 
                 //open the camera and start tracking the gaze
                 gazeTracker.startTracking()
-
+                GazeTrackerSingleton.tracker = gazeTracker
+                GazeTrackerSingleton.isInitialized = true
             } else {
                 initFail(error)
             }
@@ -544,9 +541,6 @@ class MainActivity : AppCompatActivity() {
                         isCalibrated = false
                         val i = Intent("it.unipi.dii.xavier.BACK")
                         sendBroadcast(i)
-                        //Fa partire il servizio EEGSentimentService
-                        //val serviceIntent = Intent(this@MainActivity, EEGsentimentService::class.java)
-                        //startService(serviceIntent)
                     } catch (e: Exception) {
                         Log.e("AppProcess", "Errore startService: ${e.message}", e)
                     }
@@ -559,19 +553,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /*
-    //Serve a registrare il broadcast receiver
-    override fun onResume() {
-        super.onResume()
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { //struttura necessaria per la questione del versioning (che palle Android)
-            Context.RECEIVER_EXPORTED
-        } else {
-            0
-        }
-        registerReceiver(receiver, IntentFilter("EEG_MENTAL_STATUS"), flags)
-
-    }
-*/
     /**
      * Cleans up resources such as thread pool when activity is destroyed.
      */

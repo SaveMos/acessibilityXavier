@@ -77,7 +77,7 @@ class GazeTrackerService : AccessibilityService() {
 
     //for snap blink (true)
     private var blink_counter=0
-    private val blinkTreshold = 1000L // ms
+    private val blinkTreshold = 800L // ms
 
 
     //for swipe

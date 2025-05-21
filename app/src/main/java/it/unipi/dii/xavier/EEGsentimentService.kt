@@ -13,6 +13,7 @@ import mylibrary.mindrove.SensorData
 import mylibrary.mindrove.ServerManager
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -63,7 +64,9 @@ class EEGsentimentService : Service() {
     private var isPythonBusy = false  //impedisce che più funzioni python vengano lanciate contemporaneamente
 
     private var serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private var serviceInit = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var serviceInitScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var modelInitJob: Job? = null
+    private var isModelInitialized = false
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (!isNetworkAvailable()) {
@@ -72,29 +75,37 @@ class EEGsentimentService : Service() {
             return START_NOT_STICKY
         }
 
-
         createNotificationChannel(this)
         val notification = NotificationCompat.Builder(this, "eeg_channel_id")
             .setContentTitle("EEG attivo")
-            .setContentText("In ascolto dei dati mentali...")
+            .setContentText("Inizializzazione modello")
             .setSmallIcon(R.drawable.ic_brain)
             .build()
         startForeground(1, notification)
 
-        Log.i("AppProcess","Initializing XavierModel in python")
-        var result=false
-        serviceInit.launch(Dispatchers.IO) {
-            Log.i("AppProcess","Launching...")
-            result = withContext(Dispatchers.Default) {pyModule.callAttr(funInitModel).toBoolean()}
-            Log.i("AppProcess","Returned:${result}")
+        Log.i("AppProcess","Initializing XavierModel in python (non-blocking)")
+
+        modelInitJob = serviceInitScope.launch {
+            Log.i("AppProcess","Launching model initialization...")
+            val result = withContext(Dispatchers.Default) { pyModule.callAttr(funInitModel).toBoolean() }
+            Log.i("AppProcess","Model initialization returned: $result")
             if (result){
-                Log.i("AppProcess", "Model initialized")
-            }else{
-                Log.e("AppProcess", "Model not initialized")
-                stopSelf()
+                Log.i("AppProcess", "Model initialized successfully")
+                isModelInitialized = true
+                // Avvia il server manager solo dopo che il modello è inizializzato
+                startServerManager()
+            } else {
+                Log.e("AppProcess", "Model initialization failed")
+                stopSelf() // O gestisci l'errore in modo appropriato
             }
         }
 
+        // Il server manager NON viene avviato qui direttamente.
+        // Verrà avviato solo dopo il completamento di modelInitJob.
+        return START_STICKY
+    }
+
+    private fun startServerManager() {
         Log.i("AppProcess","Starting server manager")
         try {
             //Funzione che gestisce i dati quando arrivano
@@ -113,10 +124,10 @@ class EEGsentimentService : Service() {
                 Log.d("EEGsignal", "Received channel1: ${sensorData.channel1}")
                 Log.d("EEGsignal", "Approximation: ${sensorData.channel1.toFloat()}")
 
-                if (!isEEGConnected) {
+                if (!isEEGConnected && isModelInitialized) {
                     isEEGConnected = true
                     //attiva il codice python per analizzare i dati
-                    startStreaming()  // Avvia il timer SOLO dopo il primo campione ricevuto
+                    startStreaming()  // Avvia il timer SOLO dopo il primo campione ricevuto E il modello è pronto
                     Log.i("AppProcess","Streaming started")
                 }
             }
@@ -132,9 +143,8 @@ class EEGsentimentService : Service() {
             stopSelf()
         }
         isServerManagerStarted = true
-
-        return START_STICKY
     }
+
     private fun updateMentalStatus(prediction: Boolean) {
         mentalStatusHistory.addLast(prediction)
         if (mentalStatusHistory.size > mentalStatusWindowSize) {
@@ -146,14 +156,22 @@ class EEGsentimentService : Service() {
             val truePercentage = trueCount.toDouble() / mentalStatusHistory.size
             mentalStatus = if (truePercentage >= mentalStatusStabilityThresholdPercentage) "Stabile (True)" else "Stabile (False)"
 
-            if(mentalStatus == "Stabile (False)"){
-                if(!(gazeTracker?.isTracking)!!){
-                    gazeTracker!!.startTracking()
+            if (GazeTrackerSingleton.isInitialized) {
+                if(mentalStatus == "Stabile (False)"){
+                    gazeTracker?.let {
+                        if (!it.isTracking) {
+                            it.startTracking()
+                        }
+                    }
+                } else {
+                    gazeTracker?.let {
+                        if (it.isTracking == true) {
+                            it.stopTracking()
+                        }
+                    }
                 }
-            }else{
-                if(gazeTracker?.isTracking == true){
-                    gazeTracker!!.stopTracking()
-                }
+            } else {
+                Log.d("AppProcess", "Eye tracker not initialized.")
             }
 
         } else {
@@ -166,7 +184,7 @@ class EEGsentimentService : Service() {
     //Metodo che gestisce il timer per lanciare il codice python
     private fun startStreaming() {
         serviceScope.launch(Dispatchers.IO) {
-            while (isActive) {
+            while (isActive && isModelInitialized) { // Verifica che il modello sia inizializzato
                 try {
                     if (eegBuffer.hasEnoughData() && !isPythonBusy) {
                         isPythonBusy = true
@@ -177,30 +195,17 @@ class EEGsentimentService : Service() {
                                 canali_parsati
                             ).toInt()
                         }
-                        /*
-                            FONDAMENTALE: bisogna capire ogni quanto tempo fare l'analisi e mandare il risultato del cambiamento di stato del paziente
-                            Casistiche:
-                            1) aumentare o diminuire python_timer per indicare ogni quanto viene analizzati i dati dei segnali EEG e inviata la risposta
-                            2) lasciare a 1000 il timer e implementare una funzione che se rileva per un certo numero di secondi un cambiamento di stato allora
-                                invia il risultato di cambiamento di stato (più responsiva e fedele)
-                            3) nella versione raw si accetta ogni prediction come cambiamento di stato (più instabile, può portare a maggior overhead e a continue attivazioni e disattivazione hardware)
 
-                            Si ricorda che il cambiamento di stato è legato alla disattivazione e riattivazione della fotocamera.
-                         */
 
                         if (predizione==0)
-                            updateMentalStatus(false) //occhi aperti
+                            updateMentalStatus(true) //occhi aperti
                         else
-                            updateMentalStatus(true) //occhi chiusi
+                            updateMentalStatus(false) //occhi chiusi
 
-                        /*
-                        // Invia il valore alla MainActivity tramite Intent
-                        val broadcastIntent = Intent("EEG_MENTAL_STATUS")
-                        broadcastIntent.putExtra("mentalStatus", mentalStatus)
-                        sendBroadcast(broadcastIntent)
-                         */
+
                         Log.e("AppProcess", "Intent broadcasted: $predizione")
                         Log.i("AppProcess", "Mental status: $mentalStatus")
+
                     }
                 } catch (e: Exception) {
                     Log.e("PyBridge", "Python error: ${e.message}")
@@ -211,6 +216,7 @@ class EEGsentimentService : Service() {
             }
         }
     }
+
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -226,10 +232,11 @@ class EEGsentimentService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        modelInitJob?.cancel()
+        serviceScope.cancel()
         //Ferma il ServerManager.
         if (isServerManagerStarted){
             serverManager.stop()
-            serviceScope.cancel()
         }
     }
     override fun onBind(intent: Intent?): IBinder? = null
@@ -277,7 +284,3 @@ class CircularEEGBuffer(private val capacity: Int, private val windowSize : Int)
         return output
     }
 }
-
-
-
-
